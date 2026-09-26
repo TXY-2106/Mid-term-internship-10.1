@@ -1,3 +1,9 @@
+<div align=center>
+
+**中文** ｜ [English](README.en.md)
+
+</div>
+
 # 中期实习 10.1 ｜ 排队 / 服务需求监测器
 
 > UL–LICHPU 智慧校园生活实验室 · 学生项目 · 15 ECTS · 12 周实施周期
