@@ -12,8 +12,6 @@
 
 ## 1. Project Overview
 
-**One-line definition**: estimate queue length and service demand in campus service areas in a privacy-preserving way, and show the current waiting status to users in real time.
-
 **Campus problem**
 
 Service counters on campus — canteen pick-up, library borrowing and enquiry desks, student services, print stations, coffee counters — tend to form queues at peak times. Users cannot judge the waiting situation in advance, and service operators have no real-time view of demand distribution.
