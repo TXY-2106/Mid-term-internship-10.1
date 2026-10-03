@@ -1,4 +1,4 @@
-### A queue monitor based on Thermal imaging and STM32 
+# A queue monitor based on Thermal imaging and STM32 
 
 ## Ⅰ. Background
 Consisdering that there is a **long queues** at restaurant in peak time, students can't know the queue number of each food stall. And traditional camera setup involves privacy which university probably won't accept. So we try to solve it by thermal imaging, a schema has less problem with privacy.
