@@ -1,6 +1,6 @@
 <div align=center>
 
-[中文](README.md) ｜ **English**
+[中文](README.md) ｜ **English** ｜ [Proposal](docs/proposal.md)
 
 </div>
 
@@ -8,7 +8,7 @@
 
 > UL–LICHPU Smart Campus Living Lab · Student Project · 15 ECTS · 12-week delivery cycle
 >
-> Current stage: early — topic confirmed; service location, requirements and technical approach still to be defined
+> Current stage: early — topic and technical approach confirmed (infrared recognition + STM32 edge computing); service location and requirements still to be defined
 
 ## 1. Project Overview
 
@@ -21,6 +21,15 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 - Anonymously sense queue length or service demand in the selected service area
 - Estimate the waiting status (idle / normal / busy, or expected waiting time in minutes)
 - Publish the status in real time on a local display and a web dashboard, and retain historical data
+
+**Technical approach (confirmed)**
+
+- Sensing: infrared recognition module — no visible-light images are captured, so face and identity privacy issues are avoided at the source
+- Computing: STM32 edge processing — headcount and queue length are estimated on-device, and raw images are never uploaded
+- Route: rebuild from an open-source reference design, with lightweighting and localisation so it can be deployed and replicated at LICHPU
+- Target: queue-length estimation error of ±1–2 people, with real-time queue counts displayed per food stall
+
+See [Proposal](docs/proposal.md).
 
 **Users and beneficiaries**
 
@@ -35,11 +44,11 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 
 | ID | Item | Criterion | Verification method |
 | --- | --- | --- | --- |
-| A1 | Queue length estimation | Error ≤ ±1 person within the design density range | Compare with manual headcount in the same time window, ≥ 5 repeats |
+| A1 | Queue length estimation | Error ≤ ±2 people (target ≤ ±1) | Compare with manual headcount in the same time window, ≥ 5 repeats |
 | A2 | Waiting-status decision | ≥ 80% accuracy against manual observation | Cover idle / normal / peak scenarios |
 | A3 | End-to-end latency | ≤ 5 s from on-site change to display update | Compare a stopwatch with system log timestamps |
 | A4 | Stability | ≥ 4 h continuous operation without failure | Long-run operation log |
-| A5 | Privacy compliance | No camera, no face or identity recognition; aggregate counts only | Design and data review |
+| A5 | Privacy compliance | No visible-light camera, no face or identity recognition; aggregate counts only | Design and data review |
 | A6 | Integrated prototype | At least 2 meaningful data inputs, working end to end | Live demonstration |
 | A7 | Test evidence | Unit / integration / system tests traced to requirements, documented | Test records and datasets |
 | A8 | Dashboard | Real-time status + historical trend + alerting | Live demonstration |
@@ -64,3 +73,10 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 | Week 10 | Final engineering iteration | Close critical defects, complete acceptance tests, design freeze | Design freeze |
 | Week 11 | Report and presentation preparation | Report draft, slides, demo script, repository documentation | Draft ready |
 | Week 12 | Final assessment | Prototype demo, team presentation, individual defence, final report | Final gate |
+
+## 4. Project documents
+
+| Document | Description |
+| --- | --- |
+| [Proposal](docs/proposal.md) | Technical route, innovation points and project goals |
+| [Reference papers](docs/papers/) | Queue-monitoring literature, including LOADS (LiDAR-based privacy-preserving queue monitoring) |

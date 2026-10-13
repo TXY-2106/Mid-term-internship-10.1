@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 #  Queue / Service Demand Monitor
+=======
+# A queue monitor based on Thermal imaging and STM32 
+>>>>>>> d9610508793454020115a24461c66becd6beb90e
 
 ## Ⅰ. Background
 Consisdering that there is a **long queues** at restaurant in peak time, students can't know the queue number. And traditional camera setup involves privacy which university probably won't accept. So we try to solve it by infrared sensor, a schema has less problem with privacy.
@@ -22,6 +26,7 @@ Today, crowd monitoring and density estimating are im
 plemented by video (or image) based recognition technology
 [1]. But, it's privay-invasive. The most directly relevant prior work is summarised below.
 
+<<<<<<< HEAD
 [📄](papers/Monitoring_Social_Distancing_in_Queues_Using_Infrared_Array_Sensor.pdf)[2], a paper about using infrared array sensor to monitor queue-lengh. Deployed an **MLX90640** 32×24 infrared array sensor on an **STM32L476** microcontroller, communicating over I<sup>2</sup>C and LoRa to monitor queues. Installed overhead and tested aat several heights, the node detects **up to six persons per queue with 93% accuracy** when inter-person spacig is below 80cm, while preservig privacy and consuming less energy.
 
 [📄](papers/s40313-022-00916-z.pdf)[3], a paper bulit a low -cost bidirectional people counter from an **ESP32** and **E18-D80NK infrared sensor**, with an RTC and microSD logging. Deployed at bus and **university restaurant gates**, it achieved 91.45% and 98.65% accurary.
@@ -55,3 +60,7 @@ head-shoulder detection, in Proc. of IEEE ICPR, 2008, pp. 1C4.
 [2] M. Rezzouki, S. Ouajih, and G. Ferré, "Monitoring social distancing in queues using infrared array sensor," IEEE Sensors J., vol. 22, no. 17, Sep. 2022, doi: 10.1109/JSEN.2021.3104669.
 
 [3] R. L. dos Santos, H. C. de Oliveira, M. C. de Almeida, D. F. Vieira, E. P. Lacusta Junior, and T. Ji, "A low-cost bidirectional people counter device for assisting social distancing monitoring for COVID-19," J. Control, Autom. Electr. Syst., vol. 33, pp. 1148–1160, 2022, doi: 10.1007/s40313-022-00916-z.
+=======
+## Ⅴ. Goal
+Achieve a queue-length estimation error of ±1 - 2 pepole and display real-time queue-length 
+>>>>>>> d9610508793454020115a24461c66becd6beb90e
