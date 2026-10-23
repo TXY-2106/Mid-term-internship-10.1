@@ -1,6 +1,6 @@
 <div align=center>
 
-[中文](README.md) ｜ **English** ｜ [Proposal](docs/proposal.md)
+[中文](README.md) ｜ **English** ｜ [Technical Proposal](docs/proposal.md)
 
 </div>
 
@@ -8,75 +8,103 @@
 
 > UL–LICHPU Smart Campus Living Lab · Student Project · 15 ECTS · 12-week delivery cycle
 >
-> Current stage: early — topic and technical approach confirmed (infrared recognition + STM32 edge computing); service location and requirements still to be defined
+> Current stage: solution confirmed; procurement and prototype build underway (infrared detection + STM32 edge acquisition + ESP32 connectivity)
 
 ## 1. Project Overview
 
 **Campus problem**
 
-Service counters on campus — canteen pick-up, library borrowing and enquiry desks, student services, print stations, coffee counters — tend to form queues at peak times. Users cannot judge the waiting situation in advance, and service operators have no real-time view of demand distribution.
+Service counters on campus — canteen pick-up, library borrowing and enquiry desks, student services, print stations, coffee counters — become crowded at peak times. Users cannot judge the waiting situation in advance, and service operators have no real-time view of demand distribution.
 
 **Project tasks**
 
-- Anonymously sense queue length or service demand in the selected service area
-- Estimate the waiting status (idle / normal / busy, or expected waiting time in minutes)
-- Publish the status in real time on a local display and a web dashboard, and retain historical data
+- Anonymously sense entry / exit flow, occupancy and queue-length level in the selected service area
+- Determine the crowding status (idle / normal / busy) from occupancy and queue level
+- Publish the current status and historical trend in real time through a web dashboard, with threshold alerts
+- Store raw counts locally and export them after each experiment for comparative analysis
 
 **Technical approach (confirmed)**
 
-- Sensing: infrared recognition module — no visible-light images are captured, so face and identity privacy issues are avoided at the source
-- Computing: STM32 edge processing — headcount and queue length are estimated on-device, and raw images are never uploaded
-- Route: rebuild from an open-source reference design, with lightweighting and localisation so it can be deployed and replicated at LICHPU
-- Target: queue-length estimation error of ±1–2 people, with real-time queue counts displayed per food stall
+| Stage | Approach |
+| --- | --- |
+| Sensing | 4 × E18-D80NK infrared photoelectric switches: 2 mounted on either side of the passage to determine entry / exit by trigger order; 2 placed along the queue at roughly 50% and 100% positions as queue-length threshold detectors. No cameras, no visible-light images |
+| Edge acquisition | STM32F103C8T6: 1 kHz timed sampling, entry / exit counting, queue-level classification, DS3231 offline timestamps, microSD raw logs |
+| Connectivity and display | ESP32 (CH340): receives data over UART, reports over Wi-Fi and hosts the web dashboard |
+| Power | 5V/3A |
 
-See [Proposal](docs/proposal.md).
+**Data flow**
+
+```
+E18 entry/exit ×2 ─┐
+                   ├─► STM32 ──SPI──► microSD (raw logs)
+E18 queue ×2 ──────┘      │
+                          ├──I²C──► DS3231 (offline timestamps)
+                          └──UART──► ESP32 ──Wi-Fi──► web dashboard
+```
+
+**Queue level rules**
+
+| State | Condition |
+| --- | --- |
+| Low | 50% sensor not continuously blocked |
+| About half | 50% sensor blocked continuously for ≥ 5 s, 100% sensor not blocked |
+| Full | 100% sensor blocked continuously for ≥ 5 s |
+
+- **Continuous blocking** distinguishes “standing in the queue” from “walking past”: fast-moving crowds produce only short pulses and do not trigger a level.
+- **Hysteresis**: escalation takes effect immediately; de-escalation requires 15 s without blockage to avoid state flicker.
+- **Cross-check**: compared with the occupancy count from entry / exit counting; “Full” is never reported when occupancy is too low.
+
+**Design trade-off**: Acquisition and connectivity are split across two boards. A Wi-Fi reconnect or reset on the ESP32 does not interrupt STM32 acquisition or SD logging, keeping experimental data continuous; when moving to another site, only the gateway needs replacing and the acquisition firmware stays unchanged.
+
+**Scope**
+
+Queue length in this phase is expressed as a **three-level discrete classification** (low / about half / full); continuous counts or waiting minutes are not provided. Continuous length estimation and a waiting-time model are left for later iterations.
 
 **Users and beneficiaries**
 
 - Direct users: students and staff waiting for service — less blind waiting
-- Beneficiaries: service-point operators — visibility of demand distribution for staffing and queue guidance
+- Beneficiaries: service-point operators — demand visibility for staffing and queue guidance
 
-**Core deliverables**: integrated working prototype + real-time waiting-status display + dashboard + verification evidence against a human baseline
-
-**Out of scope**: personal identification, face or gait recognition, attendance or law-enforcement use, automated decisions about university staffing
+**Core deliverables**: working prototype (acquisition + storage + wireless reporting) + web dashboard (real-time status / historical trend / alerting) + verification evidence against manual counting
 
 ## 2. Acceptance Criteria
 
 | ID | Item | Criterion | Verification method |
 | --- | --- | --- | --- |
-| A1 | Queue length estimation | Error ≤ ±2 people (target ≤ ±1) | Compare with manual headcount in the same time window, ≥ 5 repeats |
-| A2 | Waiting-status decision | ≥ 80% accuracy against manual observation | Cover idle / normal / peak scenarios |
-| A3 | End-to-end latency | ≤ 5 s from on-site change to display update | Compare a stopwatch with system log timestamps |
-| A4 | Stability | ≥ 4 h continuous operation without failure | Long-run operation log |
+| A1 | Queue-length level | Three-level (low / about half / full) agreement with manual observation ≥ 80% | Same-period comparison, ≥ 5 repeats, all three states covered |
+| A2 | Crowding-status decision | Combines occupancy, entry / exit flow and queue level; ≥ 80% accuracy against manual observation | Cover idle / normal / peak scenarios |
+| A3 | End-to-end latency | ≤ 5 s from on-site change to web update | Compare a stopwatch with system log timestamps |
+| A4 | Stability | ≥ 4 h continuous operation without crashes or data loss | Long-run log and count-continuity check |
 | A5 | Privacy compliance | No visible-light camera, no face or identity recognition; aggregate counts only | Design and data review |
-| A6 | Integrated prototype | At least 2 meaningful data inputs, working end to end | Live demonstration |
-| A7 | Test evidence | Unit / integration / system tests traced to requirements, documented | Test records and datasets |
-| A8 | Dashboard | Real-time status + historical trend + alerting | Live demonstration |
+| A6 | Integrated prototype | At least 2 meaningful data inputs (entry / exit flow, queue thresholds), working end to end | Live demonstration |
+| A7 | Test evidence | Unit / integration / system tests traced to requirements, documented | Test records and exported count datasets |
+| A8 | Dashboard | Real-time status + historical trend + alerting | Live demonstration (web) |
 | A9 | Cross-campus replication | Differences and feasibility of deployment at UL and LICHPU explained | Report chapter |
 
 > These thresholds must be confirmed with the module tutor and frozen before the requirements gate, then refined into testable requirement items.
 
-## 3. Timeline (12 weeks)
+## 3. Cost Control
 
-| Week | Focus | Required evidence | Gate |
+> Estimated China retail prices (JD / Taobao, October 2026), RMB, tax included; excludes shipping, installation labour and maintenance. Prices, VAT and logistics in the UL / LICHPU locations have not been assessed.
+
+| Item | Qty | Unit (¥) | Subtotal (¥) |
 | --- | --- | --- | --- |
-| Week 0 | Team formation and topic confirmation | Team list, role allocation | Team confirmation |
-| Week 1 | Problem definition and campus needs | Problem statement, users and location, success measures | Concept review |
-| Week 2 | Benchmarking and requirements | Benchmark analysis, requirements, acceptance criteria, ethics and privacy screening | Requirements gate |
-| Week 3 | System design | Architecture diagram, component selection, data model, bill of materials, risk register | Design gate |
-| Week 4 | Development plan and subsystem verification | Schedule, task ownership, single-sensor verification | Progress review 1 |
-| Week 5 | Integrated prototype v1 | End-to-end data path, first waiting-status display | Prototype checkpoint |
-| Week 6 | Integration and mid-term review | Working core system, contribution matrix, risk review | Mid-term assessment |
-| Week 7 | Optimisation and calibration | Queue-length and waiting-time model calibration, alerting logic | Technical review |
-| Week 8 | Verification campaign | Structured experiments against the manual baseline | Evidence checkpoint |
-| Week 9 | Analysis and deployment assessment | Results analysis, UL–LICHPU replicability, cost | Progress review 2 |
-| Week 10 | Final engineering iteration | Close critical defects, complete acceptance tests, design freeze | Design freeze |
-| Week 11 | Report and presentation preparation | Report draft, slides, demo script, repository documentation | Draft ready |
-| Week 12 | Final assessment | Prototype demo, team presentation, individual defence, final report | Final gate |
+| STM32F103C8T6 minimum system board | 1 | 15–25 | 15–25 |
+| E18-D80NK infrared photoelectric switch | 4 | 7 | 28 |
+| microSD card slot + 8 GB TF card | 1 set | 22 | 22 |
+| ESP32 development board (CH340) | 1 | 21 | 21 |
+| DS3231 RTC module | 1 | 14 | 14 |
+| 5V/3A power supply | 1 | 12 | 12 |
+| Perfboard / wiring / enclosure | 1 set | 25–35 | 25–35 |
+| **Single-node total** | | | **approx. 140–160** |
 
-## 4. Project documents
+- **One-off prototype**: ST-Link ¥12, breadboard and jumper wires ¥5, shipping ¥10–20; first unit approx. **¥170–200**.
+- **Cost controls**: web dashboard replaces the local display; entry / exit sensors also provide occupancy counts; only two threshold sensors for the queue; DS3231 instead of GPS; small TF card reused; shared debugging tools.
+- **Boundary**: hardware material cost only; excludes labour, network and maintenance; overseas costs not assessed.
+
+## 4. Project Documents
 
 | Document | Description |
 | --- | --- |
-| [Proposal](docs/proposal.md) | Technical route, innovation points and project goals |
+| [Technical Proposal](docs/proposal.md) | Technical route, innovation points and project goals (may be updated as the design evolves) |
 | [Reference papers](docs/papers/) | Queue-monitoring literature, including LOADS (LiDAR-based privacy-preserving queue monitoring) |
