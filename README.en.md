@@ -92,16 +92,33 @@ Queue length in this phase is expressed as a **three-level discrete classificati
 | STM32F103C8T6 minimum system board | 1 | 15–25 | 15–25 |
 | E18-D80NK infrared photoelectric switch | 4 | 7 | 28 |
 | SD card slot module (full-size) | 1 | 5 | 5 |
-| SD card 32 GB | 1 | 0 | 0 (owned) |
+| SD card 32 GB (owned) | 1 | 100–150 | — (excluded) |
 | ESP32 development board (CH340) | 1 | 21 | 21 |
 | DS3231 RTC module | 1 | 14 | 14 |
 | 5V/3A power supply | 1 | 12 | 12 |
 | Perfboard / wiring / enclosure | 1 set | 25–35 | 25–35 |
 | **Single-node total** | | | **approx. 120–140** |
 
+> Note: the 32 GB SD card is owned; its market price is shown for reference only and is excluded from the total.
+
 - **One-off prototype**: ST-Link ¥12, breadboard and jumper wires ¥5, shipping ¥10–20; first unit approx. **¥150–180**.
 - **Cost controls**: web dashboard replaces the local display; entry / exit sensors also provide occupancy counts; only two threshold sensors for the queue; DS3231 instead of GPS; owned 32 GB SD card (verified and formatted as FAT32), no purchase required; shared debugging tools.
 - **Boundary**: hardware material cost only; excludes labour, network and maintenance; overseas costs not assessed.
+
+### Storage capacity note
+
+The 32 GB card is used because one was already available, not because that capacity is required. Based on approximately 1 MB per 4-hour experiment (~0.25 MB/hour):
+
+| Operating period | Estimated data |
+| --- | --- |
+| 1 hour | ~0.25 MB |
+| 1 day (10 h) | ~2.5 MB |
+| 1 month (30 days × 10 h) | ~75 MB |
+| 1 year (365 days × 10 h) | ~0.9 GB |
+
+- **Recommended deployment capacity: 8 GB.** At 10 h/day, 8 GB holds about 9 years of data; 8 GB is SDHC with native FAT32, usable in FatFs out of the box.
+- If 8 GB is hard to source, 16 GB is equally suitable; avoid 64 GB and above — SDXC/exFAT requires FF_FS_EXFAT, and the capacity far exceeds the need.
+- Data should still be exported to a PC per experiment or per day; the card is a transfer buffer, not long-term storage.
 
 ## 4. Project Documents
 
