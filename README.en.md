@@ -4,7 +4,7 @@
 
 </div>
 
-# Mid-term Internship 10.1 | Queue / Service Demand Monitor
+# Mid-term Internship 10.1 | Queue Status Monitor
 
 > UL–LICHPU Smart Campus Living Lab · Student Project · 15 ECTS · 12-week delivery cycle
 >
