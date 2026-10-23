@@ -28,7 +28,7 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 | Stage | Approach |
 | --- | --- |
 | Sensing | 4 × E18-D80NK infrared photoelectric switches: 2 mounted on either side of the passage to determine entry / exit by trigger order; 2 placed along the queue at roughly 50% and 100% positions as queue-length threshold detectors. No cameras, no visible-light images |
-| Edge acquisition | STM32F103C8T6: 1 kHz timed sampling, entry / exit counting, queue-level classification, DS3231 offline timestamps, microSD raw logs |
+| Edge acquisition | STM32F103C8T6: 1 kHz timed sampling, entry / exit counting, queue-level classification, DS3231 offline timestamps, SD card raw logs |
 | Connectivity and display | ESP32 (CH340): receives data over UART, reports over Wi-Fi and hosts the web dashboard |
 | Power | 5V/3A |
 
@@ -36,7 +36,7 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 
 ```
 E18 entry/exit ×2 ─┐
-                   ├─► STM32 ──SPI──► microSD (raw logs)
+                   ├─► STM32 ──SPI──► SD card (raw logs)
 E18 queue ×2 ──────┘      │
                           ├──I²C──► DS3231 (offline timestamps)
                           └──UART──► ESP32 ──Wi-Fi──► web dashboard
@@ -91,15 +91,16 @@ Queue length in this phase is expressed as a **three-level discrete classificati
 | --- | --- | --- | --- |
 | STM32F103C8T6 minimum system board | 1 | 15–25 | 15–25 |
 | E18-D80NK infrared photoelectric switch | 4 | 7 | 28 |
-| microSD card slot + 8 GB TF card | 1 set | 22 | 22 |
+| SD card slot module (full-size) | 1 | 5 | 5 |
+| SD card 32 GB | 1 | 0 | 0 (owned) |
 | ESP32 development board (CH340) | 1 | 21 | 21 |
 | DS3231 RTC module | 1 | 14 | 14 |
 | 5V/3A power supply | 1 | 12 | 12 |
 | Perfboard / wiring / enclosure | 1 set | 25–35 | 25–35 |
-| **Single-node total** | | | **approx. 140–160** |
+| **Single-node total** | | | **approx. 120–140** |
 
-- **One-off prototype**: ST-Link ¥12, breadboard and jumper wires ¥5, shipping ¥10–20; first unit approx. **¥170–200**.
-- **Cost controls**: web dashboard replaces the local display; entry / exit sensors also provide occupancy counts; only two threshold sensors for the queue; DS3231 instead of GPS; small TF card reused; shared debugging tools.
+- **One-off prototype**: ST-Link ¥12, breadboard and jumper wires ¥5, shipping ¥10–20; first unit approx. **¥150–180**.
+- **Cost controls**: web dashboard replaces the local display; entry / exit sensors also provide occupancy counts; only two threshold sensors for the queue; DS3231 instead of GPS; owned 32 GB SD card (verified and formatted as FAT32), no purchase required; shared debugging tools.
 - **Boundary**: hardware material cost only; excludes labour, network and maintenance; overseas costs not assessed.
 
 ## 4. Project Documents
