@@ -8,7 +8,7 @@
 
 > UL–LICHPU Smart Campus Living Lab · Student Project · 15 ECTS · 12-week delivery cycle
 >
-> Current stage: early — topic and technical approach confirmed (infrared recognition + STM32 edge computing); service location and requirements still to be defined
+> Current stage: early — topic and technical approach confirmed (infrared beam counting + STM32 edge computing); service location and requirements still to be defined
 
 ## 1. Project Overview
 
@@ -24,8 +24,8 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 
 **Technical approach (confirmed)**
 
-- Sensing: infrared recognition module — no visible-light images are captured, so face and identity privacy issues are avoided at the source
-- Computing: STM32 edge processing — headcount and queue length are estimated on-device, and raw images are never uploaded
+- Sensing: infrared photoelectric beam sensors (non-imaging) — people are counted as they cross the boundary of a single-file queue lane, so no camera of any kind is used and face and identity privacy issues are avoided at the source
+- Computing: STM32 edge processing — queue length, arrival and service rates and waiting time are computed on-device, and only aggregate values leave the node; raw crossing events remain on the local SD card
 - Route: rebuild from an open-source reference design, with lightweighting and localisation so it can be deployed and replicated at LICHPU
 - Target: queue-length estimation error of ±1–2 people, with real-time queue counts displayed per food stall
 
