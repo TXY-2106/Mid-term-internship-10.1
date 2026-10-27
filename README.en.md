@@ -8,11 +8,9 @@
 
 > UL–LICHPU Smart Campus Living Lab · Student Project · 15 ECTS · 12-week delivery cycle
 >
-<<<<<<< HEAD
 > Current stage: early — topic and technical approach confirmed (infrared beam counting + STM32 edge computing); service location and requirements still to be defined
-=======
+> 
 > Current stage: solution confirmed; procurement and prototype build underway (infrared detection + STM32 edge acquisition + ESP32 connectivity)
->>>>>>> d7f33d94ebda664b3029369f1cc6fbf150a60a0a
 
 ## 1. Project Overview
 
@@ -41,7 +39,6 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 | Edge acquisition | STM32F103C8T6: 1 kHz timed sampling, entry / exit counting, queue-level classification, DS3231 offline timestamps, SD card raw logs |
 | Connectivity and display | ESP32 (CH340): receives data over UART, reports over Wi-Fi and hosts the web dashboard |
 | Power | 5V/3A |
->>>>>>> d7f33d94ebda664b3029369f1cc6fbf150a60a0a
 
 **Data flow**
 
