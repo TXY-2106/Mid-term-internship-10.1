@@ -134,14 +134,14 @@ The 32 GB card is used because one was already available, not because that capac
 <details>
 <summary><b>4. Hardware</b></summary>
 
-- [Datasheets](docs/datasheets/)
-- [Hardware directory (wiring)](hardware/)
+- [Datasheets](https://github.com/TXY-2106/Mid-term-internship-10.1/tree/main/docs/datasheets)
+- [Hardware directory (wiring)](https://github.com/TXY-2106/Mid-term-internship-10.1/tree/main/hardware)
 
 </details>
 
 <details>
 <summary><b>5. Documentation Index</b></summary>
 
-- [Documentation index](docs/README.md)
+- [Documentation index](https://github.com/TXY-2106/Mid-term-internship-10.1/blob/main/docs/README.md)
 
 </details>
