@@ -8,11 +8,12 @@
 
 > UL–LICHPU Smart Campus Living Lab · Student Project · 15 ECTS · 12-week delivery cycle
 >
-> Current stage: early — topic and technical approach confirmed (infrared beam counting + STM32 edge computing); service location and requirements still to be defined
-> 
 > Current stage: solution confirmed; procurement and prototype build underway (infrared detection + STM32 edge acquisition + ESP32 connectivity)
 
-## 1. Project Overview
+> Click a section title to expand it.
+
+<details>
+<summary><b>1. Project Overview</b></summary>
 
 **Campus problem**
 
@@ -27,12 +28,6 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 
 **Technical approach (confirmed)**
 
-<<<<<<< HEAD
-- Sensing: infrared photoelectric beam sensors (non-imaging) — people are counted as they cross the boundary of a single-file queue lane, so no camera of any kind is used and face and identity privacy issues are avoided at the source
-- Computing: STM32 edge processing — queue length, arrival and service rates and waiting time are computed on-device, and only aggregate values leave the node; raw crossing events remain on the local SD card
-- Route: rebuild from an open-source reference design, with lightweighting and localisation so it can be deployed and replicated at LICHPU
-- Target: queue-length estimation error of ±1–2 people, with real-time queue counts displayed per food stall
-=======
 | Stage | Approach |
 | --- | --- |
 | Sensing | 4 × E18-D80NK infrared photoelectric switches: 2 mounted on either side of the passage to determine entry / exit by trigger order; 2 placed along the queue at roughly 50% and 100% positions as queue-length threshold detectors. No cameras, no visible-light images |
@@ -75,7 +70,10 @@ Queue length in this phase is expressed as a **three-level discrete classificati
 
 **Core deliverables**: working prototype (acquisition + storage + wireless reporting) + web dashboard (real-time status / historical trend / alerting) + verification evidence against manual counting
 
-## 2. Acceptance Criteria
+</details>
+
+<details>
+<summary><b>2. Acceptance Criteria</b></summary>
 
 | ID | Item | Criterion | Verification method |
 | --- | --- | --- | --- |
@@ -91,7 +89,10 @@ Queue length in this phase is expressed as a **three-level discrete classificati
 
 > These thresholds must be confirmed with the module tutor and frozen before the requirements gate, then refined into testable requirement items.
 
-## 3. Cost Control
+</details>
+
+<details>
+<summary><b>3. Cost Control</b></summary>
 
 > Estimated China retail prices (JD / Taobao, October 2026), RMB, tax included; excludes shipping, installation labour and maintenance. Prices, VAT and logistics in the UL / LICHPU locations have not been assessed.
 
@@ -128,9 +129,19 @@ The 32 GB card is used because one was already available, not because that capac
 - If 8 GB is hard to source, 16 GB is equally suitable; avoid 64 GB and above — SDXC/exFAT requires FF_FS_EXFAT, and the capacity far exceeds the need.
 - Data should still be exported to a PC per experiment or per day; the card is a transfer buffer, not long-term storage.
 
-## 4. Project Documents
+</details>
 
-| Document | Description |
-| --- | --- |
-| [Technical Proposal](docs/proposal.md) | Technical route, innovation points and project goals (may be updated as the design evolves) |
-| [Reference papers](docs/papers/) | Queue-monitoring literature, including LOADS (LiDAR-based privacy-preserving queue monitoring) |
+<details>
+<summary><b>4. Hardware</b></summary>
+
+- [Datasheets](docs/datasheets/)
+- [Hardware directory (wiring)](hardware/)
+
+</details>
+
+<details>
+<summary><b>5. Documentation Index</b></summary>
+
+- [Documentation index](docs/README.md)
+
+</details>
