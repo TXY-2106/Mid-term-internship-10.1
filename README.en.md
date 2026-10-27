@@ -96,7 +96,7 @@ Queue length in this phase is expressed as a **three-level discrete classificati
 <details>
 <summary><b>3. Cost Control</b></summary>
 
-> Estimated China retail prices (JD / Taobao, October 2026), RMB, tax included; excludes shipping, installation labour and maintenance. Prices, VAT and logistics in the UL / LICHPU locations have not been assessed.
+> Estimated China retail prices (JD / Taobao, October 2026), RMB, tax included; excludes shipping, installation labour and maintenance. Prices, VAT and logistics in the UL locations have not been assessed.
 
 | Item | Qty | Unit (¥) | Subtotal (¥) |
 | --- | --- | --- | --- |
