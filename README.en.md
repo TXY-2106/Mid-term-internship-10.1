@@ -12,8 +12,7 @@
 
 > Click a section title to expand it.
 
-<details>
-<summary><b>1. Project Overview</b></summary>
+## 1. Project Overview
 
 **Campus problem**
 
@@ -26,6 +25,11 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 - Publish the current status and historical trend in real time through a web dashboard, with threshold alerts
 - Store raw counts locally and export them after each experiment for comparative analysis
 
+**Users and beneficiaries**
+
+- Direct users: students and staff waiting for service — less blind waiting
+- Beneficiaries: service-point operators — demand visibility for staffing and queue guidance
+
 **Technical approach (confirmed)**
 
 | Stage | Approach |
@@ -34,6 +38,9 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 | Edge acquisition | STM32F103C8T6: 1 kHz timed sampling, entry / exit counting, queue-level classification, DS3231 offline timestamps, SD card raw logs |
 | Connectivity and display | ESP32 (CH340): receives data over UART, reports over Wi-Fi and hosts the web dashboard |
 | Power | 5V/3A |
+
+<details>
+<summary><b>Expand: data flow / queue rules / design trade-off / scope / core deliverables</b></summary>
 
 **Data flow**
 
@@ -62,11 +69,6 @@ E18 queue ×2 ──────┘      │
 **Scope**
 
 Queue length in this phase is expressed as a **three-level discrete classification** (low / about half / full); continuous counts or waiting minutes are not provided. Continuous length estimation and a waiting-time model are left for later iterations.
-
-**Users and beneficiaries**
-
-- Direct users: students and staff waiting for service — less blind waiting
-- Beneficiaries: service-point operators — demand visibility for staffing and queue guidance
 
 **Core deliverables**: working prototype (acquisition + storage + wireless reporting) + web dashboard (real-time status / historical trend / alerting) + verification evidence against manual counting
 
