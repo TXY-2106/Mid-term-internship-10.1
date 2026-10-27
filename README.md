@@ -134,14 +134,14 @@ E18 队列 ×2 ─┘      │
 <details>
 <summary><b>4. 硬件</b></summary>
 
-- [器件资料（datasheets）](docs/datasheets/)
-- [硬件目录（接线说明）](hardware/)
+- [器件资料（datasheets）](https://github.com/TXY-2106/Mid-term-internship-10.1/tree/main/docs/datasheets)
+- [硬件目录（接线说明）](https://github.com/TXY-2106/Mid-term-internship-10.1/tree/main/hardware)
 
 </details>
 
 <details>
 <summary><b>5. 文档索引</b></summary>
 
-- [文档总索引](docs/README.md)
+- [文档总索引](https://github.com/TXY-2106/Mid-term-internship-10.1/blob/main/docs/README.md)
 
 </details>
