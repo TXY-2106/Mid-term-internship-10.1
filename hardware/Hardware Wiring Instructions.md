@@ -85,7 +85,8 @@ I²C address 0x68. If the battery is a CR2032, remove R5 (charging resistor) or 
 | Module | Connect to |
 | --- | --- |
 | Type-C | Power bank (USB-A to Type-C) |
-| VIN | 5V output to STM32 / E18 / SD |
+| V5 / VIN | 5V output to STM32 / E18 / SD |
+| 3V3 | 3.3V output to DS3231 and pull-up |
 | GND | GND |
 | GPIO16 (U2RXD) | PA2 |
 | GPIO17 (U2TXD) | PA3 |
