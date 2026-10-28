@@ -1,0 +1,33 @@
+# ============================================================
+# 换行符与二进制规则
+#
+# 背景：Windows 默认 core.autocrlf=true 会把仓库里的 LF 检出成 CRLF，
+#       每次 git add 都刷一堆 "LF will be replaced by CRLF" 警告，
+#       并且在不同机器 / 不同 autocrlf 设置之间会造成 diff 噪音。
+#
+# 规则：
+#   - 默认：仓库与工作区统一用 LF。Keil(ARMCC)、Arduino IDE、make 均可正常读取 LF。
+#   - 例外：Keil 工程文件与启动汇编保持 CRLF，与 ST 官方模板一致，避免无谓改动。
+#   - 二进制：不做任何换行转换。
+# ============================================================
+
+* text=auto eol=lf
+
+# ---- Keil MDK 工程与启动文件（保持 CRLF）----
+*.uvprojx    text eol=crlf
+*.uvoptx     text eol=crlf
+*.uvguix.*   text eol=crlf
+*.s          text eol=crlf
+
+# ---- 二进制文件（禁止换行转换）----
+*.pdf    binary
+*.mp4    binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.zip    binary
+*.hex    binary
+*.bin    binary
+*.axf    binary
+*.lib    binary

@@ -1,0 +1,37 @@
+# 构建产物与本地临时文件（不要提交）
+
+# —— core 单元测试 ——
+tests/run_tests
+tests/run_tests.exe
+tests/*.o
+
+# —— ESP32 / Arduino 构建缓存 ——
+*.build/
+build/
+.pio/
+.vscode/
+
+# —— Keil MDK ——
+stm32/Project/Objects/
+stm32/Project/Listings/
+stm32/Project/DebugConfig/
+stm32/Project/build.log
+*.uvguix.*
+*.uvoptx.bak
+*.bak
+*.dep
+*.crf
+*.o
+*.d
+*.axf
+*.hex
+*.bin
+*.map
+*.lst
+
+# —— 系统文件 ——
+Thumbs.db
+.DS_Store
+
+# 构建日志
+*.log
