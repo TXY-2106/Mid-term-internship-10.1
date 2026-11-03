@@ -55,6 +55,18 @@ PB12–PB15, PA4–PA7, PB6–PB7 and PA2–PA3 map to GPIO, SPI1, I2C1 and USAR
 
 Add a **10k pull-up to 3.3V** on each black wire; NPN normally open, active low.
 
+**Pull-up value**: anything from 4.7–10 kΩ works, and **the closer to 4.7 kΩ the better**. The E18 is an NPN open-collector output — it can only pull the line low, so the resistor and the cable capacitance form an RC network. A smaller resistor gives a steeper edge and better noise immunity.
+
+| Value | Current per channel (blocked) | Four channels | Edge speed |
+| --- | --- | --- | --- |
+| 4.7 kΩ | ≈ 0.64 mA | ≈ 2.6 mA | Fast |
+| 10 kΩ | ≈ 0.30 mA | ≈ 1.2 mA | About 2× slower |
+
+- Do not go below 4.7 kΩ: the current doubles with little gain in noise margin.
+- Do not go above 10 kΩ: the edge becomes too slow and long cables may false-trigger.
+- The pull-up must go to **3.3V**, never 5V — PB12–PB15 are not 5V-tolerant.
+- Use one resistor per channel; the four channels cannot share a single resistor.
+
 ### DS3231
 
 | Module | Connect to |
