@@ -18,9 +18,9 @@ static FIL   s_events;
 static uint8_t s_ready;
 
 /* 极简 strlen，避免链接完整 libc（F103 Flash 只有 64 KB） */
-static SIZE_T strlen_local(const char *s)
+static UINT strlen_local(const char *s)
 {
-    SIZE_T n = 0u;
+    UINT n = 0u;
     while (s[n] != '\0') { n++; }
     return n;
 }

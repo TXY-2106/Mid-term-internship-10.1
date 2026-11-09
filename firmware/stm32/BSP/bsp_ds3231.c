@@ -25,29 +25,119 @@ static void put4(char *buf, uint8_t *pos, uint16_t v)
 }
 
 /* ---------------- I2C1 底层 ----------------
- * TODO(在 Keil 工程中补齐)：这里给出标准库调用骨架。
- * 需要在工程里加入 stm32f10x_i2c.c，并保证 PB6/PB7 配置为复用开漏。
- * 注意：F103 的硬件 I2C 存在已知 errata，若出现总线锁死，
- *       可改为软件模拟 I2C（本项目 SD 卡与 RTC 分开挂在不同总线，风险可控）。
+ * PB6 = SCL, PB7 = SDA（复用开漏，模块自带 4.7 kΩ 上拉时也可用内部弱上拉）。
+ * 所有等待都带超时：总线被拉死时返回失败而不是卡住主循环。
+ * F103 硬件 I2C 有已知 errata，因此在 init 前先做一次"9 个时钟"的
+ * 总线恢复（把从机从半途状态打回空闲），再复位 I2C 外设。
  */
+#define I2C_TIMEOUT   0x00040000u
+
+static uint8_t i2c_wait_event(uint32_t event)
+{
+    uint32_t to = I2C_TIMEOUT;
+
+    while (I2C_CheckEvent(I2C1, event) == ERROR) {
+        if (--to == 0u) {
+            return 0u;
+        }
+    }
+    return 1u;
+}
+
+/** 总线恢复：SDA 被从机拉低时，手动发 9 个 SCL 脉冲 + 一个 STOP */
+static void i2c_bus_recover(void)
+{
+    GPIO_InitTypeDef gpio;
+    uint8_t i;
+
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+
+    gpio.GPIO_Pin   = GPIO_Pin_6 | GPIO_Pin_7;
+    gpio.GPIO_Mode  = GPIO_Mode_Out_OD;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOB, &gpio);
+
+    GPIO_SetBits(GPIOB, GPIO_Pin_6 | GPIO_Pin_7);
+    for (i = 0u; i < 9u; i++) {
+        GPIO_ResetBits(GPIOB, GPIO_Pin_6);
+        GPIO_SetBits(GPIOB, GPIO_Pin_6);
+    }
+    /* 制造一个 STOP：SCL 高时 SDA 由低变高 */
+    GPIO_ResetBits(GPIOB, GPIO_Pin_7);
+    GPIO_SetBits(GPIOB, GPIO_Pin_6);
+    GPIO_SetBits(GPIOB, GPIO_Pin_7);
+}
+
+static uint8_t i2c_send_addr(uint8_t addr)
+{
+    I2C_Send7bitAddress(I2C1, addr, I2C_Direction_Transmitter);
+    return i2c_wait_event(I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED);
+}
+
+static uint8_t i2c_send_byte(uint8_t v)
+{
+    I2C_SendData(I2C1, v);
+    return i2c_wait_event(I2C_EVENT_MASTER_BYTE_TRANSMITTED);
+}
+
 static uint8_t i2c_write_reg(uint8_t reg, uint8_t val)
 {
-    /* TODO: I2C_GenerateSTART / 发送地址 / 发送 reg / 发送 val / I2C_GenerateSTOP */
-    (void)reg; (void)val;
-    return 0u;   /* 骨架阶段返回失败，接入硬件后改为真实返回值 */
+    I2C_GenerateSTART(I2C1, ENABLE);
+    if (!i2c_wait_event(I2C_EVENT_MASTER_MODE_SELECT)) { return 0u; }
+    if (!i2c_send_addr((uint8_t)(DS3231_I2C_ADDR << 1))) { return 0u; }
+    if (!i2c_send_byte(reg)) { return 0u; }
+    if (!i2c_send_byte(val)) { return 0u; }
+
+    I2C_GenerateSTOP(I2C1, ENABLE);
+    return 1u;
 }
 
 static uint8_t i2c_read_regs(uint8_t reg, uint8_t *buf, uint8_t n)
 {
-    /* TODO: 先写寄存器地址，再 restart 读 n 字节 */
-    (void)reg; (void)buf; (void)n;
-    return 0u;
+    uint8_t i;
+
+    if (buf == 0 || n == 0u || n > 16u) {
+        return 0u;
+    }
+
+    /* 1) 写寄存器地址（不 STOP，直接 restart） */
+    I2C_GenerateSTART(I2C1, ENABLE);
+    if (!i2c_wait_event(I2C_EVENT_MASTER_MODE_SELECT)) { return 0u; }
+    if (!i2c_send_addr((uint8_t)(DS3231_I2C_ADDR << 1))) { return 0u; }
+    if (!i2c_send_byte(reg)) { return 0u; }
+
+    /* 2) 重复起始 + 读地址 */
+    I2C_GenerateSTART(I2C1, ENABLE);
+    if (!i2c_wait_event(I2C_EVENT_MASTER_MODE_SELECT)) { return 0u; }
+
+    I2C_AcknowledgeConfig(I2C1, ENABLE);
+    I2C_Send7bitAddress(I2C1, (uint8_t)(DS3231_I2C_ADDR << 1), I2C_Direction_Receiver);
+    if (!i2c_wait_event(I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED)) { return 0u; }
+
+    /* 3) 读 n 字节：最后一个字节前给 NACK */
+    for (i = 0u; i < n; i++) {
+        if ((uint8_t)(i + 1u) == n) {
+            I2C_AcknowledgeConfig(I2C1, DISABLE);
+        }
+        if (!i2c_wait_event(I2C_EVENT_MASTER_BYTE_RECEIVED)) {
+            I2C_AcknowledgeConfig(I2C1, ENABLE);
+            return 0u;
+        }
+        buf[i] = I2C_ReceiveData(I2C1);
+    }
+
+    I2C_GenerateSTOP(I2C1, ENABLE);
+    I2C_AcknowledgeConfig(I2C1, ENABLE);   /* 恢复默认，供下次使用 */
+    return 1u;
 }
 
 uint8_t bsp_ds3231_init(void)
 {
     GPIO_InitTypeDef  gpio;
     I2C_InitTypeDef   i2c;
+
+    /* 先恢复总线，再复位 I2C 外设，避免上一次运行留下的半途状态 */
+    i2c_bus_recover();
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE);
@@ -57,16 +147,19 @@ uint8_t bsp_ds3231_init(void)
     gpio.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOB, &gpio);
 
+    I2C_SoftwareResetCmd(I2C1, ENABLE);
+    I2C_SoftwareResetCmd(I2C1, DISABLE);
+
     i2c.I2C_Mode                = I2C_Mode_I2C;
     i2c.I2C_DutyCycle           = I2C_DutyCycle_2;
     i2c.I2C_OwnAddress1         = 0x00;
     i2c.I2C_Ack                 = I2C_Ack_Enable;
     i2c.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
-    i2c.I2C_ClockSpeed          = 400000;
+    i2c.I2C_ClockSpeed          = 100000;       /* 100 kHz，长排线更稳 */
     I2C_Init(I2C1, &i2c);
     I2C_Cmd(I2C1, ENABLE);
 
-    /* 探测：读状态寄存器，能读通即认为器件在线 */
+    /* 探测：读状态寄存器 0x0F，能读通即认为器件在线 */
     uint8_t st = 0u;
     return i2c_read_regs(0x0Fu, &st, 1u);
 }

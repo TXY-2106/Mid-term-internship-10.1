@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F10X_MD</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Start;..\Library;..\App;..\BSP;..\..\core</IncludePath>
+              <IncludePath>..\Start;..\Library;..\App;..\BSP;..\..\core;..\Middlewares\FatFs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -450,6 +450,11 @@
               <FileType>1</FileType>
               <FilePath>..\..\core\protocol.c</FilePath>
             </File>
+            <File>
+              <FileName>qsm_history.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\core\qsm_history.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -464,6 +469,11 @@
               <FileName>data_logger.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\App\data_logger.c</FilePath>
+            </File>
+            <File>
+              <FileName>hist_store.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\App\hist_store.c</FilePath>
             </File>
             <File>
               <FileName>stm32f10x_conf.h</FileName>
@@ -494,6 +504,26 @@
               <FileName>bsp_sdcard.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\BSP\bsp_sdcard.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_sd_disk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\bsp_sd_disk.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Middlewares</GroupName>
+          <Files>
+            <File>
+              <FileName>ff.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\FatFs\ff.c</FilePath>
+            </File>
+            <File>
+              <FileName>diskio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Middlewares\FatFs\diskio.c</FilePath>
             </File>
           </Files>
         </Group>
