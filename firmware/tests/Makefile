@@ -10,7 +10,7 @@
 CC     ?= gcc
 CFLAGS ?= -std=c99 -Wall -Wextra -Wpedantic -O2 -I../core
 
-SRCS := $(wildcard ../core/*.c) test_main.c test_gate_counter.c test_queue_grade.c test_protocol.c
+SRCS := $(wildcard ../core/*.c) test_main.c test_gate_counter.c test_queue_grade.c test_protocol.c test_history.c
 BIN  := run_tests
 
 .PHONY: all test clean

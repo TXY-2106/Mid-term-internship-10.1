@@ -109,11 +109,11 @@ Error: Flash Download failed - "Cortex-M3"
 
 | 分组 | 文件 |
 |---|---|
-| `Core`（`../../core`） | `gate_counter.c`、`queue_grade.c`、`protocol.c` |
-| `App` | `app_main.c`、`data_logger.c` |
-| `BSP` | `bsp_e18.c`、`bsp_ds3231.c`、`bsp_sdcard.c`、`bsp_uart.c` |
+| `Core`（`../../core`） | `gate_counter.c`、`queue_grade.c`、`protocol.c`、`qsm_history.c` |
+| `App` | `app_main.c`、`data_logger.c`、`hist_store.c` |
+| `BSP` | `bsp_e18.c`、`bsp_ds3231.c`、`bsp_sdcard.c`、`bsp_sd_disk.c`、`bsp_uart.c` |
 | `Library`（标准库） | `stm32f10x_gpio.c`、`_rcc.c`、`_i2c.c`、`_spi.c`、`_usart.c`、`_misc.c` |
-| `FatFs` | `ff.c`、`diskio.c`（自行加入并实现 SPI 底层） |
+| `Middlewares` | `ff.c`、`diskio.c`（`Middlewares/FatFs`，已随仓库提供） |
 | `Start` | `startup_stm32f10x_md.s`、`system_stm32f10x.c`、`core_cm3.c` |
 
 **包含路径**（Options → C/C++ → Include Paths）：
@@ -139,15 +139,16 @@ USE_STDPERIPH_DRIVER, STM32F10X_MD
 - Options → Target → 勾选 **Use MicroLIB**（FatFs 与 printf 更省 Flash）
 - `stm32f10x_conf.h` 里取消注释 `#include "stm32f10x_i2c.h"`、`stm32f10x_spi.h`、`stm32f10x_usart.h`
 
-## 待补的硬件底函
+## 硬件底函现状
 
-骨架已给，接板子时补这三处：
+原本留空的三处底函都已实现，代码与 `arm-none-eabi-gcc -Wall -Wextra` 检查均通过，**待上板实测**：
 
-| 文件 | 待补内容 |
+| 文件 | 内容 |
 |---|---|
-| `BSP/bsp_ds3231.c` | `i2c_write_reg()` / `i2c_read_regs()`：标准库 I2C1 的 START/地址/读写/STOP 时序 |
-| `BSP/bsp_sdcard.c` | FatFs 的 `diskio.c`：SPI1 读写 SD 卡、`disk_initialize/status/read/write/ioctl` |
-| `BSP/bsp_uart.c` | `bsp_uart_link_ok()`：接收 ESP32 心跳字符做链路判断（可选） |
+| `BSP/bsp_ds3231.c` | I²C1（PB6/PB7，100 kHz）读写寄存器：`i2c_write_reg()` / `i2c_read_regs()`，含 9 个 SCL 脉冲的总线恢复与 `I2C_SoftwareResetCmd` 兜底，探测寄存器 `0x0F` |
+| `BSP/bsp_sd_disk.c` | SD 卡 SPI 协议：CMD0 / CMD8 / ACMD41 / CMD58 / CMD16 / CMD17 / CMD24，281 kHz 起步后提到 9 MHz，支持 SDHC 块寻址 |
+| `App/hist_store.c` | 预测历史落盘：一天一个 `H<YYMMDD>.CSV`，上电回读最近 7 天 |
+| `BSP/bsp_uart.c` | `bsp_uart_link_ok()` 的接收超时判断（可选，未做也不影响主流程） |
 
 > F103 的硬件 I²C 有已知 errata，若总线锁死，可把 DS3231 改为软件模拟 I²C（SD 卡走 SPI，互不影响）。
 
@@ -193,6 +194,82 @@ Keil 中：Options → Debug → 选 **ST-Link Debugger** → Settings → Port 
 [QSM] init done
 ```
 
-**USART2（PA2/PA3 → ESP32）** 每秒输出一帧 `$QSM,...`。没有 ESP32 时，可临时把 USB-TTL 接到 PA2/PA3 直接看帧。
+**USART2（PA2/PA3 → ESP32）** 每 250 ms 输出一帧 `$QSM,...`。没有 ESP32 时，可临时把 USB-TTL 接到 PA2/PA3 直接看帧。
 
 接线说明里的分级检查顺序（对应 `hardware/硬件接线说明.md` 第 4 节）：逐个接 E18，黑线无遮挡 3.3 V、有遮挡 0 V → 接 DS3231 并扫到 `0x68` → 接 SD 卡确认挂载 → 最后接 ESP32 看网页。
+
+## 历史人数预测与 SD 卡落盘
+
+`App/app_config.h` 里的开关：
+
+| 宏 | 默认 | 作用 |
+|---|---|---|
+| `APP_HISTORY_ENABLE` | `1u` | 1=每分钟记录一次在场人数并计算预测值 |
+| `APP_TASK_HISTORY_MS` | `60000u` | 记录周期（60 s） |
+| `APP_RTC_ENABLE` | `1u` | 1=启用 DS3231 真实时间（预测要靠它对齐时段） |
+| `APP_SDCARD_ENABLE` | `1u` | 1=挂载 SD 卡并写 `status.csv` / `events.csv` |
+| `APP_HIST_PERSIST` | `1u` | 1=把历史人数按天落 SD 卡，上电回读（0=只存 RAM，掉电清零） |
+
+做法：把在场人数按 **15 分钟一段、存 7 天**放进 RAM（`qsm_history_t`，7×96 = 672 B），
+预测值 = 过去 7 天同一时段的平均在场人数，随 4 Hz 上报帧的 `pred` / `pred_n` 两个字段发给 ESP32。
+同一帧尾还会带 `beams`（四路探头电平位图），网页据此显示每支探头当前是否被遮挡，现场可用它逐支排查。
+
+SD 卡上的历史文件：
+
+```
+H261109.CSV
+HH:MM,occ
+09:00,3
+09:01,4
+...
+```
+
+- 一天一个文件，8.3 短名；卡要求 **FAT16/FAT32、≤32 GB**（未开长文件名支持）。
+- 每 60 s 追加一行 `HH:MM,occ`；写完立刻 `f_sync`（掉电最多丢一行）。
+- 上电时读 `today-8 … today-1` 共 8 个文件，把历史灌回 RAM 表；今天不读，避免把当天重复计入。
+- 文件不存在（第一次上电）是正常现象，串口会打印 `[QSM] no history file yet`。
+
+注意事项：
+
+- **必须开 RTC**：`APP_RTC_ENABLE = 1` 且 DS3231 正常，否则无法判断"同一时段"，预测恒为 0。
+- **不含今天**：当天的数据不参与平均（当天没跑完会把均值拉低），所以**要连续跑满一个自然日**才有预测值。
+- **一个时段存一个值**：同一 15 分钟内每分钟都会写，后写覆盖先写。
+- 调试口每秒那行会多出预测值，形如 `L=0101 in=12 out=3 occ=9 pred=9/4`（`pred=` 预测人数 / 参考天数）。
+
+
+## 实时性、复位命令与稳定性
+
+### 任务节拍（`App/app_config.h`）
+
+| 宏 | 默认 | 说明 |
+|---|---|---|
+| `APP_TASK_FSM_MS` | `10u` | 状态机推进 + 事件出队 |
+| `APP_TASK_REPORT_MS` | `250u` | 组帧发 ESP32（4 Hz，网页才“实时”） |
+| `APP_TASK_STATUS_MS` | `1000u` | 写状态 CSV + 调试行（1 Hz，不频繁写卡） |
+| `APP_TASK_LOGFLUSH_MS` | `10000u` | `f_sync` 落盘 |
+| `APP_TASK_HISTORY_MS` | `60000u` | 历史记录与预测 |
+
+### 网页复位（USART2 收命令，不用按复位键）
+
+ESP32 下发一行 `$QSR,<cmd>*<CRC8>\n`：
+
+| cmd | 动作 |
+|---|---|
+| 1 | `gate_init()` / `grade_init()` 归零，`in`/`out`/`occ`/`grade`/`pred` 清零 |
+| 2 | `qsm_hist_init()` + `hist_store_clear()`，删掉近 8 天的 `H*.CSV` |
+| 3 | 1 + 2 |
+
+STM32 侧由 `USART2_IRQHandler` 收进 128 B 环形缓冲，主循环 `bsp_uart_poll_cmd()` 非阻塞取整行，
+`qsm_cmd_parse()` 校验后执行；对应网页上的“清零计数 / 清空历史 / 全部复位”三个按钮。
+
+### 稳定性改动（针对“必须手动复位才恢复”）
+
+- `task_report()` 不再无条件读 DS3231：`APP_RTC_ENABLE=0` 或初始化失败时完全不碰 I2C，
+  也就不会因为每次超时把主循环拖慢上百毫秒。
+- I2C 连续 10 次读失败 → 自动重新初始化 I2C1（含 9 个 SCL 的总线恢复），
+  串口会打印 `[QSM] DS3231 recovered`；总线被从机拉死时不再需要按复位键。
+- **启动文件栈从 1 KB 加到 4 KB**（`Start/startup_stm32f10x_md.s` 的 `Stack_Size EQU 0x00001000`）：
+  原先 1 KB 时 `task_report` 链已占 560 B，叠上 FatFs 的 `f_open/f_gets` 有 HardFault 风险。
+- `bsp_uart.c` 的发送改为**带上限轮询**（TXE/TC 都有 guard），串口异常不会卡死主循环。
+- 若仍出现 HardFault：用 Keil 的 `Register` 窗口看 `LR` 是否为 `0xFFFFFFF9`，
+  或把 `APP_HIST_PERSIST` 临时置 0 缩小栈占用定位。

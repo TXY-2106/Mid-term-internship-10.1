@@ -12,6 +12,8 @@ int main(void)
     suite_queue_grade();
     printf("[protocol]\n");
     suite_protocol();
+    printf("[history]\n");
+    suite_history();
 
     printf("\n%d checks, %d failures\n", g_tests, g_fails);
     return (g_fails == 0) ? 0 : 1;

@@ -22,4 +22,12 @@ void bsp_uart_debug(const char *s);
 /** 粗略判断 ESP32 是否还在（收到其心跳/无校验错误）。骨架阶段恒返回 1。 */
 uint8_t bsp_uart_link_ok(void);
 
+/**
+ * 取一条来自 ESP32 的完整命令行（以 '\n' 结束）。
+ * 由 USART2 接收中断累积，主循环轮询调用，不阻塞。
+ * @param line 输出缓冲；@param len 缓冲长度
+ * @return 1 = 取到一行；0 = 暂无完整行
+ */
+uint8_t bsp_uart_poll_cmd(char *line, uint16_t len);
+
 #endif /* BSP_UART_H */

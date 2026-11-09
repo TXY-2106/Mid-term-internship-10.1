@@ -3,6 +3,7 @@
  * @brief STM32 → ESP32 帧解析实现
  */
 #include "serial_link.h"
+#include <stdio.h>
 #include <string.h>
 
 static char     s_buf[128];
@@ -54,6 +55,28 @@ static bool toU32(const char *p, size_t n, uint32_t *v)
     return true;
 }
 
+/* CRC 在帧里是 2 位十六进制，和 STM32 端 put_hex8() 对应 */
+static int hexDigit(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+}
+
+static bool toHex8(const char *p, size_t n, uint8_t *v)
+{
+    uint8_t r = 0;
+    if (n == 0 || n > 2) return false;
+    for (size_t i = 0; i < n; i++) {
+        int d = hexDigit(p[i]);
+        if (d < 0) return false;
+        r = (uint8_t)((r << 4) | (uint8_t)d);
+    }
+    *v = r;
+    return true;
+}
+
 static bool parseFrame(const char *line, size_t len, QsmState *s)
 {
     if (len < 5 || line[0] != '$') return false;
@@ -65,9 +88,9 @@ static bool parseFrame(const char *line, size_t len, QsmState *s)
     size_t crcLen  = len - bodyEnd - 1;
     if (crcLen == 0 || crcLen > 2) return false;
 
-    uint32_t want = 0;
-    if (!toU32(star + 1, crcLen, &want)) return false;
-    if (crc8((const uint8_t *)&line[1], bodyEnd - 1) != (uint8_t)want) return false;
+    uint8_t want = 0;
+    if (!toHex8(star + 1, crcLen, &want)) return false;
+    if (crc8((const uint8_t *)&line[1], bodyEnd - 1) != want) return false;
 
     const char *body = &line[1];
     size_t bodyLen = bodyEnd - 1;
@@ -94,6 +117,22 @@ static bool parseFrame(const char *line, size_t len, QsmState *s)
     NEED_FIELD(9,  s->grade,     uint8_t);
     NEED_FIELD(10, s->flags,     uint8_t);
 #undef NEED_FIELD
+
+    // 预测字段是后加的：缺省 0，老固件发的帧照样能解析
+    s->predOcc = 0;
+    s->predN   = 0;
+    if (field(body, bodyLen, 11, &f, &fl) && toU32(f, fl, &v)) {
+        s->predOcc = (uint8_t)v;
+    }
+    if (field(body, bodyLen, 12, &f, &fl) && toU32(f, fl, &v)) {
+        s->predN = (uint8_t)v;
+    }
+
+    // 探头电平位图同样是后加的：缺省 0
+    s->beams = 0;
+    if (field(body, bodyLen, 13, &f, &fl) && toU32(f, fl, &v) && v <= 0x0Fu) {
+        s->beams = (uint8_t)v;
+    }
 
     if (!field(body, bodyLen, 3, &f, &fl)) return false;
     size_t k = fl < sizeof(s->datetime) - 1 ? fl : sizeof(s->datetime) - 1;
@@ -155,3 +194,29 @@ bool link_poll(QsmState *out)
 uint32_t link_badFrames(void)  { return s_bad; }
 uint32_t link_goodFrames(void) { return s_good; }
 uint32_t link_ageMs(void)      { return s_lastGoodMs ? (millis() - s_lastGoodMs) : 0xFFFFFFFFu; }
+
+bool link_send_cmd(uint8_t cmd)
+{
+    char    body[16];
+    char    line[24];
+    uint8_t crc;
+    int     n;
+
+    if (cmd < 1 || cmd > 3) {
+        return false;
+    }
+
+    n = snprintf(body, sizeof(body), "QSR,%u", (unsigned)cmd);
+    if (n <= 0 || (size_t)n + 6u > sizeof(line)) {
+        return false;
+    }
+
+    crc = crc8((const uint8_t *)body, (size_t)n);
+
+    snprintf(line, sizeof(line), "$%s*%02X\n", body, (unsigned)crc);
+    Serial2.print(line);                  // STM32 侧 USART2 RX 中断累积后解析
+    Serial.print("[QSM] cmd sent: ");
+    Serial.print(line);
+    return true;
+}
+

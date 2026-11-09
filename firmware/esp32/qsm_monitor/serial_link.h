@@ -3,7 +3,10 @@
  * @brief 解析 STM32 上报的 $QSM 文本帧
  *
  * 帧格式（见 firmware/core/protocol.h）：
- *   $QSM,<seq>,<ms>,<datetime>,<in>,<out>,<occ>,<q50_ms>,<q100_ms>,<grade>,<flags>*<CRC8>\n
+ *   $QSM,<seq>,<ms>,<datetime>,<in>,<out>,<occ>,<q50_ms>,<q100_ms>,<grade>,<flags>,<pred>,<pred_n>*<CRC8>\n
+ *
+ * pred/pred_n 是后加的两个字段（预测排队人数与参与平均的天数），
+ * 老固件不含这两段时按 0 处理，不影响解析。
  *
  * 注意：CRC 算法必须与 firmware/core/protocol.c 中的 qsm_crc8 完全一致
  *       （CRC-8/ATM：poly 0x07，init 0x00，不反射）。两边改动需同步。
@@ -25,6 +28,9 @@ struct QsmState {
     uint32_t q100Ms;
     uint8_t  grade;      // 0=较少 1=约半 2=全满
     uint8_t  flags;
+    uint8_t  predOcc;    // 预测排队人数（近 7 天同时段平均）
+    uint8_t  predN;      // 参与平均的天数，0=历史不足
+    uint8_t  beams;      // 四路探头电平位图：bit0=入口A bit1=入口B bit2=50% bit3=100%
 };
 
 void        link_begin(uint32_t baud, int rxPin, int txPin);
@@ -40,5 +46,12 @@ uint32_t    link_goodFrames(void);
 
 /** 距上一帧正常帧的毫秒数（用于判断 STM32 是否掉线） */
 uint32_t    link_ageMs(void);
+
+/**
+ * 向 STM32 下发命令帧 $QSR,<cmd>*<CRC8>\n
+ *   cmd = 1 清零计数；2 清空历史；3 两者都做
+ * @return true = 已写入串口
+ */
+bool        link_send_cmd(uint8_t cmd);
 
 #endif /* QSM_SERIAL_LINK_H */

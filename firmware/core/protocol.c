@@ -62,6 +62,45 @@ static size_t put_str(char *buf, size_t cap, size_t pos, const char *s)
     return pos;
 }
 
+/** CRC 固定写成两位大写十六进制（如 *5E），解析端也按十六进制读 */
+static size_t put_hex8(char *buf, size_t cap, size_t pos, uint8_t v)
+{
+    static const char hex[] = "0123456789ABCDEF";
+
+    if (pos + 3u > cap) {
+        return 0u;
+    }
+    buf[pos++] = hex[(v >> 4) & 0x0Fu];
+    buf[pos++] = hex[v & 0x0Fu];
+    return pos;
+}
+
+static int hex_digit(char c)
+{
+    if (c >= '0' && c <= '9') { return c - '0'; }
+    if (c >= 'A' && c <= 'F') { return c - 'A' + 10; }
+    if (c >= 'a' && c <= 'f') { return c - 'a' + 10; }
+    return -1;
+}
+
+static int parse_hex8(const char *p, size_t n, uint8_t *out)
+{
+    uint8_t v = 0u;
+
+    if (n == 0u || n > 2u) {
+        return -1;
+    }
+    for (size_t i = 0u; i < n; i++) {
+        int d = hex_digit(p[i]);
+        if (d < 0) {
+            return -1;
+        }
+        v = (uint8_t)((v << 4) | (uint8_t)d);
+    }
+    *out = v;
+    return 0;
+}
+
 int qsm_frame_encode(const qsm_state_t *s,
                      uint32_t seq,
                      const char *dt,
@@ -97,12 +136,18 @@ int qsm_frame_encode(const qsm_state_t *s,
     pos = put_uint(buf, buflen, pos, s->grade,      1u); if (pos == 0u) { return -1; }
     pos = put_char(buf, buflen, pos, ',');             if (pos == 0u) { return -1; }
     pos = put_uint(buf, buflen, pos, s->flags,      1u); if (pos == 0u) { return -1; }
+    pos = put_char(buf, buflen, pos, ',');             if (pos == 0u) { return -1; }
+    pos = put_uint(buf, buflen, pos, s->pred_occ,   1u); if (pos == 0u) { return -1; }
+    pos = put_char(buf, buflen, pos, ',');             if (pos == 0u) { return -1; }
+    pos = put_uint(buf, buflen, pos, s->pred_n,     1u); if (pos == 0u) { return -1; }
+    pos = put_char(buf, buflen, pos, ',');             if (pos == 0u) { return -1; }
+    pos = put_uint(buf, buflen, pos, s->beams,      1u); if (pos == 0u) { return -1; }
 
     /* CRC 覆盖 '$' 之后到 '*' 之前 */
     uint8_t crc = qsm_crc8((const uint8_t *)&buf[1], pos - 1u);
 
     pos = put_char(buf, buflen, pos, '*'); if (pos == 0u) { return -1; }
-    pos = put_uint(buf, buflen, pos, crc, 2u); if (pos == 0u) { return -1; }
+    pos = put_hex8(buf, buflen, pos, crc);  if (pos == 0u) { return -1; }
     pos = put_char(buf, buflen, pos, '\n'); if (pos == 0u) { return -1; }
     buf[pos] = '\0';
     return (int)pos;
@@ -174,15 +219,15 @@ int qsm_frame_parse(const char *line,
     }
 
     /* CRC 校验：'$' 后到 '*' 前 */
-    uint32_t want = 0u;
+    uint8_t want = 0u;
     size_t crc_len = (end > star + 1u) ? (end - star - 1u) : 0u;
     if (crc_len == 0u || crc_len > 2u) {
         return -1;
     }
-    if (parse_uint(&line[star + 1u], crc_len, &want) != 0) {
+    if (parse_hex8(&line[star + 1u], crc_len, &want) != 0) {
         return -1;
     }
-    if (qsm_crc8((const uint8_t *)&line[1], star - 1u) != (uint8_t)want) {
+    if (qsm_crc8((const uint8_t *)&line[1], star - 1u) != want) {
         return -2;
     }
 
@@ -232,5 +277,100 @@ int qsm_frame_parse(const char *line,
     if (field_at(body, body_len, 10u, &fp, &fl) != 0 || parse_uint(fp, fl, &v) != 0) { return -1; }
     s->flags = (uint8_t)v;
 
+    /* 预测字段是后加的：缺省为 0，缺字段时不影响整帧解析 */
+    s->pred_occ = 0u;
+    s->pred_n   = 0u;
+    if (field_at(body, body_len, 11u, &fp, &fl) == 0 &&
+        parse_uint(fp, fl, &v) == 0) {
+        s->pred_occ = (uint8_t)v;
+    }
+    if (field_at(body, body_len, 12u, &fp, &fl) == 0 &&
+        parse_uint(fp, fl, &v) == 0) {
+        s->pred_n = (uint8_t)v;
+    }
+
+    /* 探头电平位图也是后加的：缺省 0 */
+    s->beams = 0u;
+    if (field_at(body, body_len, 13u, &fp, &fl) == 0 &&
+        parse_uint(fp, fl, &v) == 0 && v <= 0x0Fu) {
+        s->beams = (uint8_t)v;
+    }
+
+    return 0;
+}
+
+/* ---------------- 下行命令帧 ---------------- */
+int qsm_cmd_encode(uint8_t cmd, char *buf, size_t buflen)
+{
+    if (buf == NULL || buflen < 12u) {
+        return -1;
+    }
+
+    size_t pos = 0u;
+    pos = put_char(buf, buflen, pos, '$');
+    pos = put_str (buf, buflen, pos, "QSR,");
+    if (pos == 0u) { return -1; }
+    pos = put_uint(buf, buflen, pos, cmd, 1u);
+    if (pos == 0u) { return -1; }
+
+    uint8_t crc = qsm_crc8((const uint8_t *)&buf[1], pos - 1u);
+
+    pos = put_char(buf, buflen, pos, '*'); if (pos == 0u) { return -1; }
+    pos = put_hex8(buf, buflen, pos, crc); if (pos == 0u) { return -1; }
+    pos = put_char(buf, buflen, pos, '\n'); if (pos == 0u) { return -1; }
+    buf[pos] = '\0';
+    return (int)pos;
+}
+
+int qsm_cmd_parse(const char *line, size_t len, uint8_t *cmd)
+{
+    if (line == NULL || cmd == NULL || len < 8u) {
+        return -1;
+    }
+    if (line[0] != '$') {
+        return -1;
+    }
+
+    /* 找 '*' */
+    size_t star = 0u;
+    for (size_t i = 1u; i < len; i++) {
+        if (line[i] == '*') { star = i; break; }
+        if (line[i] == '\n' || line[i] == '\r') { break; }
+    }
+    if (star == 0u || star < 5u) {
+        return -1;
+    }
+
+    /* CRC 两位（允许只写一位） */
+    size_t crc_len = 0u;
+    for (size_t i = star + 1u; i < len && crc_len < 2u; i++) {
+        if (line[i] == '\n' || line[i] == '\r') { break; }
+        crc_len++;
+    }
+    uint8_t want = 0u;
+    if (crc_len == 0u || parse_hex8(&line[star + 1u], crc_len, &want) != 0) {
+        return -1;
+    }
+    if (qsm_crc8((const uint8_t *)&line[1], star - 1u) != want) {
+        return -2;
+    }
+
+    const char *body = &line[1];
+    size_t body_len  = star - 1u;
+    const char *fp; size_t fl;
+
+    if (field_at(body, body_len, 0u, &fp, &fl) != 0 || fl != 3u ||
+        fp[0] != 'Q' || fp[1] != 'S' || fp[2] != 'R') {
+        return -1;
+    }
+    if (field_at(body, body_len, 1u, &fp, &fl) != 0) {
+        return -1;
+    }
+
+    uint32_t v = 0u;
+    if (parse_uint(fp, fl, &v) != 0 || v < 1u || v > 3u) {
+        return -1;
+    }
+    *cmd = (uint8_t)v;
     return 0;
 }

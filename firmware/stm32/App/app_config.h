@@ -37,8 +37,10 @@
 
 /* ---------------- 任务周期（毫秒） ---------------- */
 #define APP_TASK_FSM_MS          10u     /* 状态机推进与事件出队 */
-#define APP_TASK_REPORT_MS       1000u   /* 组帧、发 ESP32、写状态日志 */
+#define APP_TASK_REPORT_MS       250u    /* 组帧发 ESP32：4 Hz，网页才有实时感 */
+#define APP_TASK_STATUS_MS       1000u   /* 写状态 CSV + 调试行：1 Hz，不频繁动 SD */
 #define APP_TASK_LOGFLUSH_MS     10000u  /* f_sync 落盘 */
+#define APP_TASK_HISTORY_MS      60000u  /* 历史统计：每分钟记一次在场人数 */
 
 /* ---------------- 队列分级参数（与 README 表格一致） ---------------- */
 #define APP_GATE_COINCIDE_MS     300u    /* 双束符合窗口，参考 [1] */
@@ -79,16 +81,28 @@
 #define APP_SINGLE_BEAM_TEST     0u
 
 /* ---------------- 分阶段启用开关 ----------------
- * 首次上电建议两者都为 0：此时不需要 FatFs、也不访问 I2C，
- * 采集 / 分级 / 串口 / 网页全部可用，能最快看到"排队人数"。
+ * 现在三项都已接通：
+ *   APP_RTC_ENABLE   1 → I2C1(PB6/PB7) 读 DS3231；时间戳与"同一时段"判断都要它
+ *   APP_SDCARD_ENABLE 1 → SPI1(PA4–PA7) + Middlewares/FatFs，日志与历史文件落卡
+ *   APP_HIST_PERSIST 1  → 每分钟的在场人数写进"每天一个"的 HYYMMDD.CSV，上电回读
  *
- *   APP_SDCARD_ENABLE 1 → 必须把 FatFs(ff.c + diskio.c) 加入工程并实现 SPI 底层
- *   APP_RTC_ENABLE    1 → 必须把 stm32f10x_i2c.c 加入工程并补完 bsp_ds3231.c 的 I2C 底函
- *
- * 为 0 时对应源文件自动退化为空实现，不会产生编译/链接错误。
+ * 任一项改成 0，对应源文件自动退化为空实现，不会产生编译/链接错误：
+ *   关 SD 卡 → 预测只能靠本次上电后 RAM 里积累的数据
+ *   关 RTC   → 没有真实时间，预测恒为 0（网页显示"历史不足"）
  */
-#define APP_RTC_ENABLE           0u
-#define APP_SDCARD_ENABLE        0u
+#define APP_RTC_ENABLE           1u
+#define APP_SDCARD_ENABLE        1u
+#define APP_HIST_PERSIST         1u
+
+/* ---------------- 历史人数预测 ----------------
+ * 把在场人数按 15 分钟一段存进 RAM（7 天 × 96 段 = 672 B），
+ * 预测值 = 过去 7 天同一时段的平均在场人数，随上报帧一起发给 ESP32 显示。
+ *
+ * ★ 需要真实时间：依赖 DS3231（APP_RTC_ENABLE = 1），否则无法判断"同一时段"，
+ *   此时预测值恒为 0、网页显示"历史不足"。
+ *   实测只需连续运行满一个自然日，之后就有预测值。
+ */
+#define APP_HISTORY_ENABLE       1u
 
 /* ---------------- 日志文件（FatFs 8.3 命名） ---------------- */
 #define APP_STATUS_CSV           "status.csv"

@@ -43,6 +43,7 @@ typedef enum {
 #define QSM_FLAG_SD_OK          (1u << 1)  /* SD 卡挂载成功，正在写日志    */
 #define QSM_FLAG_CROSS_CONFLICT (1u << 2)  /* 分级与在场人数交叉校验不一致 */
 #define QSM_FLAG_BEAM_FAULT     (1u << 3)  /* 某路探头长时间不变，疑似故障 */
+#define QSM_FLAG_HIST_OK        (1u << 4)  /* 历史记录可用，预测值有效        */
 
 /* ------------------------------------------------------------------ */
 /* 一次稳定边沿事件（去抖后）                                           */
@@ -65,6 +66,9 @@ typedef struct {
     uint32_t q100_occ_ms;   /* 100% 探头本次连续遮挡时长         */
     uint8_t  grade;         /* qsm_grade_t                       */
     uint8_t  flags;         /* QSM_FLAG_*                        */
+    uint8_t  pred_occ;      /* 预测排队人数：近 7 天同段平均      */
+    uint8_t  pred_n;        /* 参与平均的天数，0 = 历史不足       */
+    uint8_t  beams;         /* 四路探头电平位图，bit n = 第 n 路遮挡 */
 } qsm_state_t;
 
 /* ------------------------------------------------------------------ */

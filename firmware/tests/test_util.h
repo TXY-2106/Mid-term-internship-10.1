@@ -31,5 +31,6 @@ extern int g_fails;
 void suite_gate_counter(void);
 void suite_queue_grade(void);
 void suite_protocol(void);
+void suite_history(void);
 
 #endif /* TEST_UTIL_H */

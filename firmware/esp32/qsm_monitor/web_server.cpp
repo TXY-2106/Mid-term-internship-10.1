@@ -19,7 +19,7 @@ static void handleRoot()
 
 static void handleState()
 {
-    char buf[320];
+    char buf[448];
     if (!s_hasState) {
         snprintf(buf, sizeof(buf), "{\"valid\":false,\"good\":%lu,\"bad\":%lu,\"alert_grade\":%d,\"alert_occ\":%d}",
                  (unsigned long)link_goodFrames(), (unsigned long)link_badFrames(),
@@ -28,12 +28,14 @@ static void handleState()
         snprintf(buf, sizeof(buf),
             "{\"valid\":true,\"seq\":%lu,\"ms\":%lu,\"datetime\":\"%s\","
             "\"in\":%u,\"out\":%u,\"occ\":%d,\"q50\":%lu,\"q100\":%lu,"
-            "\"grade\":%u,\"flags\":%u,\"good\":%lu,\"bad\":%lu,\"age\":%lu,"
+            "\"grade\":%u,\"flags\":%u,\"pred\":%u,\"predn\":%u,\"beams\":%u,"
+            "\"good\":%lu,\"bad\":%lu,\"age\":%lu,"
             "\"alert_grade\":%d,\"alert_occ\":%d}",
             (unsigned long)s_state.seq, (unsigned long)s_state.uptimeMs, s_state.datetime,
             s_state.countIn, s_state.countOut, s_state.occupancy,
             (unsigned long)s_state.q50Ms, (unsigned long)s_state.q100Ms,
             s_state.grade, s_state.flags,
+            s_state.predOcc, s_state.predN, s_state.beams,
             (unsigned long)link_goodFrames(), (unsigned long)link_badFrames(),
             (unsigned long)link_ageMs(),
             ALERT_GRADE, ALERT_OCC);
@@ -43,10 +45,29 @@ static void handleState()
     s_server.send(200, "application/json", buf);
 }
 
+/** POST/GET /api/reset?cmd=1|2|3 —— 网页复位按钮下发给 STM32 */
+static void handleReset()
+{
+    int cmd = 1;
+
+    if (s_server.hasArg("cmd")) {
+        cmd = s_server.arg("cmd").toInt();
+    }
+    if (cmd < 1 || cmd > 3) {
+        cmd = 1;
+    }
+
+    bool ok = link_send_cmd((uint8_t)cmd);
+
+    s_server.sendHeader("Cache-Control", "no-store");
+    s_server.send(200, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
+}
+
 void web_begin()
 {
     s_server.on("/", handleRoot);
     s_server.on("/api/state", handleState);
+    s_server.on("/api/reset", handleReset);
     s_server.onNotFound([]() { s_server.send(404, "text/plain", "not found"); });
     s_server.begin();
 }
