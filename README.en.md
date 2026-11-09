@@ -82,7 +82,7 @@ Queue length in this phase is expressed as a **three-level discrete classificati
 | A1 | Queue-length level | Three-level (low / about half / full) agreement with manual observation ≥ 80% | Same-period comparison, ≥ 5 repeats, all three states covered |
 | A2 | Crowding-status decision | Combines occupancy, entry / exit flow and queue level; ≥ 80% accuracy against manual observation | Cover idle / normal / peak scenarios |
 | A3 | End-to-end latency | ≤ 5 s from on-site change to web update | Compare a stopwatch with system log timestamps |
-| A4 | Stability | ≥ 4 h continuous operation without crashes or data loss | Long-run log and count-continuity check |
+| A4 | Stability | ≥ 3 h continuous operation without crashes or data loss | Long-run log and count-continuity check |
 | A5 | Privacy compliance | No visible-light camera, no face or identity recognition; aggregate counts only | Design and data review |
 | A6 | Integrated prototype | At least 2 meaningful data inputs (entry / exit flow, queue thresholds), working end to end | Live demonstration |
 | A7 | Test evidence | Unit / integration / system tests traced to requirements, documented | Test records and exported count datasets |
@@ -90,6 +90,8 @@ Queue length in this phase is expressed as a **three-level discrete classificati
 | A9 | Cross-campus replication | Differences and feasibility of deployment at UL and LICHPU explained | Report chapter |
 
 > These thresholds must be confirmed with the module tutor and frozen before the requirements gate, then refined into testable requirement items.
+>
+> A4 is set to 3 h: most on-site peaks observed by the team last under 2 h, so 3 h leaves margin while matching real scenarios better than 4 h.
 
 </details>
 
@@ -138,6 +140,7 @@ The 32 GB card is used because one was already available, not because that capac
 
 - [Datasheets](https://github.com/TXY-2106/Mid-term-internship-10.1/tree/main/docs/datasheets)
 - [Hardware directory (wiring)](https://github.com/TXY-2106/Mid-term-internship-10.1/tree/main/hardware)
+- [Fabrication files (Gerber / 3D render / PCB preview)](https://github.com/TXY-2106/Mid-term-internship-10.1/tree/main/hardware/制版文件)
 
 </details>
 
