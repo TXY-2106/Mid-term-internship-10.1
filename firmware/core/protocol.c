@@ -142,6 +142,8 @@ int qsm_frame_encode(const qsm_state_t *s,
     pos = put_uint(buf, buflen, pos, s->pred_n,     1u); if (pos == 0u) { return -1; }
     pos = put_char(buf, buflen, pos, ',');             if (pos == 0u) { return -1; }
     pos = put_uint(buf, buflen, pos, s->beams,      1u); if (pos == 0u) { return -1; }
+    pos = put_char(buf, buflen, pos, ',');             if (pos == 0u) { return -1; }
+    pos = put_uint(buf, buflen, pos, s->i2c_seen,   1u); if (pos == 0u) { return -1; }
 
     /* CRC 覆盖 '$' 之后到 '*' 之前 */
     uint8_t crc = qsm_crc8((const uint8_t *)&buf[1], pos - 1u);
@@ -294,6 +296,13 @@ int qsm_frame_parse(const char *line,
     if (field_at(body, body_len, 13u, &fp, &fl) == 0 &&
         parse_uint(fp, fl, &v) == 0 && v <= 0x0Fu) {
         s->beams = (uint8_t)v;
+    }
+
+    /* I2C 扫描结果同为可选字段，缺省 0 */
+    s->i2c_seen = 0u;
+    if (field_at(body, body_len, 14u, &fp, &fl) == 0 &&
+        parse_uint(fp, fl, &v) == 0 && v <= 0x07u) {
+        s->i2c_seen = (uint8_t)v;
     }
 
     return 0;

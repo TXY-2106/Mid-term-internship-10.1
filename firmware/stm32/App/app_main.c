@@ -37,6 +37,36 @@ static qsm_history_t  s_hist;           /* 7 天 × 96 段的在场人数记录 
 #endif
 static uint8_t        s_pred;           /* 预测排队人数 */
 static uint8_t        s_pred_n;         /* 参与平均的天数 */
+static uint8_t        s_i2c_seen;       /* I2C 扫描摘要，见 rtc_scan() */
+
+/* 扫一遍 I2C 总线，把"0x68 / 0x57 / 其它器件"压成 3 个 bit。
+ * 目的：现场只看网页就能区分
+ *   - 总线上什么都没有  → 供电/接线/上拉
+ *   - 0x68 有应答        → 模块在线，问题在读取时序或模块本身
+ *   - 只有别的地址应答    → 模块型号不对或地址不符 */
+static void rtc_scan(void)
+{
+#if APP_RTC_ENABLE
+    uint8_t found[8];
+    uint8_t n;
+    uint8_t i;
+
+    n = bsp_ds3231_scan(found, (uint8_t)sizeof(found));
+    s_i2c_seen = 0u;
+    for (i = 0u; i < n; i++) {
+        if (found[i] == 0x68u)      { s_i2c_seen |= 0x01u; }
+        else if (found[i] == 0x57u) { s_i2c_seen |= 0x02u; }
+        else                        { s_i2c_seen |= 0x04u; }
+    }
+
+    if (n == 0u) {
+        bsp_uart_debug("[QSM] i2c scan: nothing on the bus");
+    } else {
+        bsp_uart_debug(s_i2c_seen & 0x01u ? "[QSM] i2c scan: 0x68 present"
+                                          : "[QSM] i2c scan: 0x68 absent, other device found");
+    }
+#endif
+}
 
 /* ---------------- SysTick：1 kHz ---------------- */
 void SysTick_Handler(void)
@@ -46,6 +76,24 @@ void SysTick_Handler(void)
 }
 
 static uint32_t now_ms(void) { return s_ms; }
+
+/* 用 SD 卡里最近 7 天的历史文件填回 RAM 表：开机时调用一次；
+ * RTC 晚些才认到时再调用一次，预测不必等到下次上电。 */
+static void hist_reload(void)
+{
+#if APP_HISTORY_ENABLE && APP_HIST_PERSIST
+    char     dt[24];
+    int32_t  day = -1;
+    uint16_t minute = 0u;
+
+    if (bsp_ds3231_get_iso8601(dt, sizeof(dt)) &&
+        qsm_hist_parse_iso(dt, &day, &minute) == 0) {
+        uint8_t n = hist_store_begin(&s_hist, day);
+        bsp_uart_debug(n > 0u ? "[QSM] history reloaded from SD"
+                              : "[QSM] no history file yet");
+    }
+#endif
+}
 
 /* ---------------- 初始化 ---------------- */
 void app_init(void)
@@ -85,6 +133,7 @@ void app_init(void)
     s_rtc_ok = bsp_ds3231_init();
     if (!s_rtc_ok) {
         bsp_uart_debug("[QSM] DS3231 not found, timestamps disabled");
+        rtc_scan();                /* 顺便扫总线，结果会随帧送到网页 */
     }
 
     if (logger_init()) {
@@ -93,21 +142,7 @@ void app_init(void)
         bsp_uart_debug("[QSM] SD card FAILED, logging disabled");
     }
 
-#if APP_HISTORY_ENABLE && APP_HIST_PERSIST
-    /* 用 SD 卡里最近 7 天的历史文件填回 RAM 表，掉电重启后预测立即可用 */
-    if (s_rtc_ok) {
-        char    dt[24];
-        int32_t day = -1;
-        uint16_t minute = 0u;
-
-        if (bsp_ds3231_get_iso8601(dt, sizeof(dt)) &&
-            qsm_hist_parse_iso(dt, &day, &minute) == 0) {
-            uint8_t n = hist_store_begin(&s_hist, day);
-            bsp_uart_debug(n > 0u ? "[QSM] history reloaded from SD"
-                                  : "[QSM] no history file yet");
-        }
-    }
-#endif
+    hist_reload();
 
     bsp_uart_debug("[QSM] init done");
 }
@@ -160,6 +195,7 @@ static void task_fsm(uint32_t now)
     if (logger_ok())                              { s_state.flags |= QSM_FLAG_SD_OK; }
     if (s_grade.conflict)                         { s_state.flags |= QSM_FLAG_CROSS_CONFLICT; }
     if (s_pred_n > 0u)                            { s_state.flags |= QSM_FLAG_HIST_OK; }
+    s_state.i2c_seen = s_i2c_seen;
 }
 
 /* ---------------- 调试输出：四路电平 + 计数 ---------------- */
@@ -264,6 +300,7 @@ static void task_report(void)
 
 /* ---------------- 1 s 任务：写状态 CSV + 调试行 ---------------- */
 static uint8_t s_rtc_fail;
+static uint8_t s_rtc_try;     /* 开机时没认到 DS3231 的重试计数 */
 
 static void task_status(void)
 {
@@ -281,6 +318,17 @@ static void task_status(void)
             s_rtc_ok   = bsp_ds3231_init();
             bsp_uart_debug(s_rtc_ok ? "[QSM] DS3231 recovered"
                                     : "[QSM] DS3231 lost, retrying later");
+        }
+    } else if (++s_rtc_try >= 10u) {
+        /* 开机时就没认到：每 10 s 再试一次。这样模块晚插、接触不良、
+           或者上电顺序不对，都能自己恢复，不必重新上电。 */
+        s_rtc_try = 0u;
+        s_rtc_ok  = bsp_ds3231_init();
+        if (s_rtc_ok) {
+            bsp_uart_debug("[QSM] DS3231 found, timestamps enabled");
+            hist_reload();
+        } else {
+            rtc_scan();            /* 顺带刷新扫描结果，网页能看到线有没有动 */
         }
     }
 

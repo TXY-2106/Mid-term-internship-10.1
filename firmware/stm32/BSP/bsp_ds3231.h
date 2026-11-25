@@ -18,4 +18,13 @@ uint8_t bsp_ds3231_init(void);
  */
 uint8_t bsp_ds3231_get_iso8601(char *buf, uint8_t len);
 
+/**
+ * 扫描 I2C1 总线 0x08–0x77，把有应答的地址写进 addrs。
+ * 用于现场区分"总线什么都没有"（供电/接线）和"有器件但不是 0x68"（地址不符）。
+ * @param addrs      输出缓冲
+ * @param max_found  缓冲最多放几个
+ * @return 应答器件数（可能大于 max_found，此时只写了前 max_found 个）
+ */
+uint8_t bsp_ds3231_scan(uint8_t *addrs, uint8_t max_found);
+
 #endif /* BSP_DS3231_H */

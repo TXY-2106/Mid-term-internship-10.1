@@ -29,11 +29,12 @@ void suite_protocol(void)
         s.pred_occ   = 9u;
         s.pred_n     = 4u;
         s.beams      = 5u;   /* 入口A + 队列50% 同时遮挡 */
+        s.i2c_seen   = 1u;   /* 扫描到 0x68，DS3231 在线 */
 
         int n = qsm_frame_encode(&s, 1024u, "2026-10-28T12:31:04", buf, sizeof(buf));
         CHECK(n > 0);
         CHECK(buf[0] == '$');
-        const char *expect = "$QSM,1024,3735000,2026-10-28T12:31:04,37,29,8,6100,0,2,3,9,4,5*";
+        const char *expect = "$QSM,1024,3735000,2026-10-28T12:31:04,37,29,8,6100,0,2,3,9,4,5,1*";
         CHECK(strncmp(buf, expect, strlen(expect)) == 0);
 
         /* CRC 必须是两位大写十六进制 */
@@ -60,6 +61,7 @@ void suite_protocol(void)
         CHECK_EQ(r.pred_occ, 9u);
         CHECK_EQ(r.pred_n, 4u);
         CHECK_EQ(r.beams, 5u);
+        CHECK_EQ(r.i2c_seen, 1u);
         CHECK(strcmp(dt_out, "2026-10-28T12:31:04") == 0);
     }
 
@@ -96,7 +98,7 @@ void suite_protocol(void)
         s.t_ms = 10u; s.count_in = 0u; s.count_out = 0u; s.occupancy = 0;
         s.q50_occ_ms = 0u; s.q100_occ_ms = 0u;
         s.grade = 0u; s.flags = 0u;
-        s.pred_occ = 0u; s.pred_n = 0u; s.beams = 0u;
+        s.pred_occ = 0u; s.pred_n = 0u; s.beams = 0u; s.i2c_seen = 0u;
         CHECK(qsm_frame_encode(&s, 1u, NULL, buf, sizeof(buf)) > 0);
         CHECK(strstr(buf, ",-,") != NULL);
     }
@@ -117,6 +119,7 @@ void suite_protocol(void)
         CHECK_EQ(r.pred_occ, 0u);
         CHECK_EQ(r.pred_n, 0u);
         CHECK_EQ(r.beams, 0u);
+        CHECK_EQ(r.i2c_seen, 0u);
     }
 
     /* 7) 探头位图字段：合法值解析、越界值忽略 */
@@ -138,6 +141,28 @@ void suite_protocol(void)
         (void)snprintf(buf, sizeof(buf), "$%s*%02X\n", body16, (unsigned)c16);
         CHECK_EQ(qsm_frame_parse(buf, &r, &seq_out, dt_out, sizeof(dt_out)), 0);
         CHECK_EQ(r.beams, 0u);
+    }
+
+    /* 7b) I2C 扫描字段：0/7 解析，>7 视为缺省 0 */
+    {
+        qsm_state_t r;
+        char buf[128];
+        char dt_out[32];
+        uint32_t seq_out = 0u;
+
+        const char *bodies[] = {
+            "QSM,1024,3735000,2026-10-28T12:31:04,37,29,8,6100,0,2,3,9,4,5,7",
+            "QSM,1024,3735000,2026-10-28T12:31:04,37,29,8,6100,0,2,3,9,4,5,8",
+        };
+        uint8_t expect_i2c[] = { 7u, 0u };
+
+        for (size_t k = 0u; k < 2u; k++) {
+            uint8_t c = qsm_crc8((const uint8_t *)bodies[k], strlen(bodies[k]));
+            (void)snprintf(buf, sizeof(buf), "$%s*%02X\n", bodies[k], (unsigned)c);
+            CHECK_EQ(qsm_frame_parse(buf, &r, &seq_out, dt_out, sizeof(dt_out)), 0);
+            CHECK_EQ(r.i2c_seen, expect_i2c[k]);
+            CHECK_EQ(r.beams, 5u);
+        }
     }
 
     /* 8) 下行命令帧：编码、往返、CRC、非法命令、老帧不误判 */

@@ -69,6 +69,7 @@ typedef struct {
     uint8_t  pred_occ;      /* 预测排队人数：近 7 天同段平均      */
     uint8_t  pred_n;        /* 参与平均的天数，0 = 历史不足       */
     uint8_t  beams;         /* 四路探头电平位图，bit n = 第 n 路遮挡 */
+    uint8_t  i2c_seen;      /* I2C 扫描：bit0=0x68应答 bit1=0x57应答 bit2=其他器件 */
 } qsm_state_t;
 
 /* ------------------------------------------------------------------ */

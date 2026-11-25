@@ -8,7 +8,7 @@
 
 static char     s_buf[128];
 static uint8_t  s_len;
-static uint32_t s_bad, s_good;
+static uint32_t s_bad, s_good, s_rx;   /* s_rx: 从 STM32 收到的原始字节数 */
 static uint32_t s_lastGoodMs;
 
 /* CRC-8/ATM，与 firmware/core/protocol.c 保持一致 */
@@ -134,6 +134,12 @@ static bool parseFrame(const char *line, size_t len, QsmState *s)
         s->beams = (uint8_t)v;
     }
 
+    // I2C 扫描摘要（bit0=0x68 bit1=0x57 bit2=其他）：缺省 0
+    s->i2cSeen = 0;
+    if (field(body, bodyLen, 14, &f, &fl) && toU32(f, fl, &v) && v <= 0x07u) {
+        s->i2cSeen = (uint8_t)v;
+    }
+
     if (!field(body, bodyLen, 3, &f, &fl)) return false;
     size_t k = fl < sizeof(s->datetime) - 1 ? fl : sizeof(s->datetime) - 1;
     memcpy(s->datetime, f, k);
@@ -148,6 +154,7 @@ void link_begin(uint32_t baud, int rxPin, int txPin)
     Serial2.begin(baud, SERIAL_8N1, rxPin, txPin);
     s_len = 0;
     s_bad = s_good = 0;
+    s_rx = 0;
     s_lastGoodMs = 0;
 }
 
@@ -155,6 +162,7 @@ bool link_poll(QsmState *out)
 {
     while (Serial2.available()) {
         char c = (char)Serial2.read();
+        s_rx++;
 
         if (c == '$') {                 // 帧头：重新开始收集
             s_len = 0;
@@ -191,6 +199,7 @@ bool link_poll(QsmState *out)
     return false;
 }
 
+uint32_t link_rxBytes(void)   { return s_rx; }
 uint32_t link_badFrames(void)  { return s_bad; }
 uint32_t link_goodFrames(void) { return s_good; }
 uint32_t link_ageMs(void)      { return s_lastGoodMs ? (millis() - s_lastGoodMs) : 0xFFFFFFFFu; }

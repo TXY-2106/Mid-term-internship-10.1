@@ -195,9 +195,111 @@ uint8_t bsp_ds3231_get_iso8601(char *buf, uint8_t len)
     return (uint8_t)(p == 19u);
 }
 
+/* ---------------- 总线扫描（排查接线用） ----------------
+ * 这个扫描在 task_status() 里每 10 s 跑一次，**必须严格限时**。
+ * 如果总线被拉死（SDA/SCL 短路、模块没供电把线钳住），
+ * I2C_TIMEOUT(0x40000) 每次等待要几百毫秒，112 个地址就是几十秒，
+ * 会把主循环整个冻住 → 网页上表现为"收不到任何数据"。
+ * 所以这里：单次探测用短超时，整轮扫描再用总预算封顶。
+ */
+#define I2C_PROBE_TO    500u      /* 单次等待上限，约 0.3 ms */
+#define I2C_SCAN_BUDGET 20000u    /* 整轮扫描总预算，约 10-20 ms */
+
+/** 带总预算的等待：预算耗尽就放弃，保证扫描不会拖死主循环 */
+static uint8_t i2c_wait_event_to(uint32_t event, uint32_t *budget)
+{
+    uint32_t to = I2C_PROBE_TO;
+
+    while (I2C_CheckEvent(I2C1, event) == ERROR) {
+        if (--to == 0u || *budget == 0u) {
+            return 0u;
+        }
+        (*budget)--;
+    }
+    return 1u;
+}
+
+/** 探测一个 7 位地址是否有人应答：只发地址、不发数据 */
+static uint8_t i2c_probe(uint8_t addr, uint32_t *budget)
+{
+    uint32_t to = I2C_PROBE_TO;
+
+    while (I2C_GetFlagStatus(I2C1, I2C_FLAG_BUSY) != RESET) {
+        if (--to == 0u || *budget == 0u) {
+            return 0u;
+        }
+        (*budget)--;
+    }
+
+    I2C_GenerateSTART(I2C1, ENABLE);
+    if (!i2c_wait_event_to(I2C_EVENT_MASTER_MODE_SELECT, budget)) {
+        I2C_GenerateSTOP(I2C1, ENABLE);
+        return 0u;
+    }
+
+    I2C_Send7bitAddress(I2C1, (uint8_t)(addr << 1), I2C_Direction_Transmitter);
+
+    to = I2C_PROBE_TO;
+    while (I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED) == ERROR) {
+        if (I2C_GetFlagStatus(I2C1, I2C_FLAG_AF) != RESET) {   /* 从机 NACK */
+            I2C_ClearFlag(I2C1, I2C_FLAG_AF);
+            I2C_GenerateSTOP(I2C1, ENABLE);
+            return 0u;
+        }
+        if (--to == 0u || *budget == 0u) {
+            I2C_ClearFlag(I2C1, I2C_FLAG_AF);
+            I2C_GenerateSTOP(I2C1, ENABLE);
+            return 0u;
+        }
+        (*budget)--;
+    }
+
+    I2C_GenerateSTOP(I2C1, ENABLE);
+    return 1u;
+}
+
+uint8_t bsp_ds3231_scan(uint8_t *addrs, uint8_t max_found)
+{
+    static const uint8_t first[] = { 0x68u, 0x57u, 0x50u, 0x69u, 0x76u, 0x77u };
+    uint32_t budget = I2C_SCAN_BUDGET;
+    uint8_t  n = 0u;
+    uint8_t  i;
+    uint8_t  a;
+
+    if (addrs == 0 || max_found == 0u) { return 0u; }
+
+    /* 先探最可能的地址：命中 0x68 立刻返回（正常情况只有零点几毫秒） */
+    for (i = 0u; i < (uint8_t)sizeof(first); i++) {
+        if (i2c_probe(first[i], &budget)) {
+            if (n < max_found) { addrs[n] = first[i]; }
+            n++;
+            if (first[i] == 0x68u) { return n; }
+        }
+        if (budget == 0u) { return (n > max_found) ? max_found : n; }
+    }
+
+    /* 常见地址都没应答时，再做一次全地址扫描（预算封顶） */
+    for (a = 0x08u; a <= 0x77u; a++) {
+        if (budget == 0u) { break; }
+        if (i2c_probe(a, &budget)) {
+            if (n < max_found) { addrs[n] = a; }
+            n++;
+        }
+    }
+
+    return (n > max_found) ? max_found : n;
+}
+
 #else  /* APP_RTC_ENABLE == 0：空实现，时间戳字段输出 "-" */
 
 uint8_t bsp_ds3231_init(void) { return 0u; }
+
+uint8_t bsp_ds3231_scan(uint8_t *addrs, uint8_t max_found)
+{
+    (void)addrs;
+    (void)max_found;
+    return 0u;
+}
 
 uint8_t bsp_ds3231_get_iso8601(char *buf, uint8_t len)
 {

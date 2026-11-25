@@ -39,6 +39,8 @@ h1 .en{font-size:12px;font-weight:400;color:var(--mut);letter-spacing:.3px}
 .bd{color:#bbb;margin-right:5px;transition:color .2s}
 .bds{font-size:15px;font-weight:600;color:var(--mut)}
 .bds.on{color:#e8590c}
+.bds.ok{color:#2e7d32}
+.bds.bad{color:#c62828}
 .alert{display:none;background:#ffebee;color:#b71c1c;border-left:4px solid #c62828;
   padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:600}
 .alert .en{color:#b71c1c;font-size:12px;font-weight:400}
@@ -51,11 +53,14 @@ h1 .en{font-size:12px;font-weight:400;color:var(--mut);letter-spacing:.3px}
 .btn:active{background:#e8eef7}
 .btn.warn{border-color:#f0b7b7;color:#a12622}
 .hint{font-size:11px;color:var(--mut);margin-top:2px}
+.hint.warn{color:#b26a00;font-weight:600}
+.hint.ok{color:#2e7d32;font-weight:600}
+.hint.bad{color:#c62828;font-weight:600}
 .foot{color:var(--mut);font-size:12px;text-align:center;padding:8px}
 </style></head><body><div class="wrap">
 <h1>排队状态监测器<span class="en">Queue Status Monitor</span></h1>
 <div id="alert" class="alert">⚠️ 队列拥挤，建议稍后再来<span class="en">Queue is crowded — please come back later</span></div>
-<div id="stale" class="stale">⏳ 数据已 <span id="staleS">0</span> 秒未更新 —— STM32 可能没在发帧<span class="en">No update for <span id="staleEnS">0</span> s — STM32 may be offline</span></div>
+<div id="stale" class="stale">⏳ <span id="staleMsg">数据已 <span id="staleS">0</span> 秒未更新 —— STM32 可能没在发帧</span><span class="en" id="staleMsgEn">No update for <span id="staleEnS">0</span> s — STM32 may be offline</span></div>
 
 <div class="card grade">
   <div id="dot" class="dot"></div>
@@ -83,6 +88,18 @@ h1 .en{font-size:12px;font-weight:400;color:var(--mut);letter-spacing:.3px}
     <div class="kv"><div class="k"><span id="b1" class="bd">●</span>队列 50%<span class="en">Queue 50%</span></div><div id="b1s" class="bds">—</div></div>
     <div class="kv"><div class="k"><span id="b2" class="bd">●</span>队列 100%<span class="en">Queue 100%</span></div><div id="b2s" class="bds">—</div></div>
   </div>
+</div>
+
+<div class="card">
+  <div class="k" style="font-size:12px;color:#777">外设状态（现场排查用）<span class="en">Peripherals — troubleshooting</span></div>
+  <div class="grid">
+    <div class="kv"><div class="k"><span id="rtcDot" class="bd">●</span>时序单元 DS3231<span class="en">DS3231 RTC</span></div><div id="rtcS" class="bds">—</div></div>
+    <div class="kv"><div class="k"><span id="sdDot" class="bd">●</span>SD 卡<span class="en">SD card</span></div><div id="sdS" class="bds">—</div></div>
+    <div class="kv"><div class="k"><span id="ccDot" class="bd">●</span>交叉校验<span class="en">Cross-check</span></div><div id="ccS" class="bds">—</div></div>
+    <div class="kv"><div class="k">历史样本<span class="en">History samples</span></div><div id="hsS" class="bds">—</div></div>
+  </div>
+  <div class="hint" id="i2cHint">I2C 扫描结果会显示在这里<span class="en">I2C bus scan result appears here</span></div>
+  <div class="hint">绿色=正常，红色=未就绪。时序单元不绿 → 时间戳为空、历史与预测都不会累积<span class="en">Green = OK, red = not ready. No RTC means no timestamp, so history and prediction never accumulate.</span></div>
 </div>
 
 <div class="card pred"><div class="grid">
@@ -116,6 +133,15 @@ function S(id,zh,en){
   var b=document.getElementById(id+'En'); if(b) b.textContent=en;
 }
 function fmtMs(ms){ if(ms<1000) return ms+" ms"; return (ms/1000).toFixed(1)+" s"; }
+function setStat(id,on,zh,en,offZh,offEn){
+  var d=document.getElementById(id+'Dot'); if(d) d.style.color=on?'#2e7d32':'#c62828';
+  var s=document.getElementById(id+'S');
+  if(s){ s.textContent=(on?zh:offZh)+' / '+(on?en:offEn); s.className='bds '+(on?'ok':'bad'); }
+}
+function setMsg(zh,en){
+  var a=document.getElementById('staleMsg'); if(a) a.textContent=zh;
+  var b=document.getElementById('staleMsgEn'); if(b) b.textContent=en;
+}
 async function cmd(n){
   try{
     await fetch('/api/reset?cmd='+n,{cache:'no-store'});
@@ -129,7 +155,15 @@ async function tick(){
     const r=await fetch('/api/state',{cache:'no-store'});
     const d=await r.json();
     if(!d.valid){
+      const rx=d.rx|0, bad=d.bad|0;
       S('gsub','未收到 STM32 数据','no data from STM32');
+      if(rx>0){
+        setMsg('收到 '+rx+' 字节但没有完整帧（坏帧 '+bad+'）—— 查波特率、TX/RX 是否半接',
+               'Received '+rx+' bytes, no valid frame — check baud rate and wiring');
+      }else{
+        setMsg('还没收到任何字节 —— 查 STM32 是否上电、PA2→GPIO16、PA3→GPIO17、是否共地',
+               'No bytes yet — check STM32 power, PA2 to GPIO16, PA3 to GPIO17, common ground');
+      }
       document.getElementById('stale').classList.add('on');
       return;
     }
@@ -157,6 +191,29 @@ async function tick(){
       if(st){ st.textContent=on?'遮挡':'通光'; st.className='bds'+(on?' on':''); }
     }
 
+    // 外设状态：flags bit0=RTC_OK bit1=SD_OK bit2=CROSS_CONFLICT
+    const fl=d.flags|0;
+    setStat('rtc',(fl&1)!==0,'正常','OK','未就绪','not ready');
+    setStat('sd',(fl&2)!==0,'正常','OK','未挂载','not mounted');
+    setStat('cc',(fl&4)===0,'一致','consistent','冲突','conflict');
+    const hs=document.getElementById('hsS');
+    if(hs){
+      hs.textContent=pn>0?(pn+' 天 / '+pn+' day(s)'):'0 天 / no sample';
+      hs.className='bds '+(pn>0?'ok':'bad');
+    }
+    // I2C 扫描提示：区分"总线上什么都没有"与"有器件但不是 0x68"
+    const ih=document.getElementById('i2cHint');
+    if(ih){
+      const i2c=d.i2c|0, rtcOk=(fl&1)!==0;
+      let txt='', cls='hint';
+      if(rtcOk){ txt='I2C 总线正常：0x68 已应答 / bus OK, 0x68 ACK'; cls='hint ok'; }
+      else if(i2c&1){ txt='0x68 有应答但读取失败 —— 模块在线，查模块供电稳定性和杜邦线 / 0x68 ACKs but reads fail: check wiring contact and module power'; cls='hint warn'; }
+      else if(i2c&2){ txt='只发现 0x57（模块上的 EEPROM），0x68 无应答 —— 模块没上电或地址不符 / only 0x57 found: module unpowered or wrong address'; cls='hint bad'; }
+      else if(i2c&4){ txt='发现其他器件但 0x68 无应答 —— 可能 SDA/SCL 接到了别的器件或型号不符 / other device answered, 0x68 absent'; cls='hint bad'; }
+      else { txt='总线上没有任何应答 —— 查 VCC=3.3V、GND 共地、SDA/SCL 是否接反与上拉电阻 / nothing on the bus: check VCC, GND, SDA/SCL and pull-ups'; cls='hint bad'; }
+      ih.textContent=txt; ih.className=cls;
+    }
+
     hist.push(g); if(hist.length>MAXP) hist.shift();
     const box=document.getElementById('bars');
     if(box.children.length!==hist.length){
@@ -176,15 +233,16 @@ async function tick(){
     const stale=age>2500;
     document.getElementById('stale').classList.toggle('on',stale);
     if(stale){
-      const s=(age/1000).toFixed(0);
-      document.getElementById('staleS').textContent=s;
-      document.getElementById('staleEnS').textContent=s;
+      const z=(age/1000).toFixed(0);
+      setMsg('数据已 '+z+' 秒未更新 —— STM32 可能没在发帧','No update for '+z+' s — STM32 may be offline');
     }
 
     document.getElementById('meta').textContent=
-      'good '+d.good+' · bad '+d.bad+' · age '+(d.age==4294967295?'—':(d.age/1000).toFixed(1)+' s');
+      'good '+d.good+' · bad '+d.bad+' · rx '+d.rx+' B · age '+(d.age==4294967295?'—':(d.age/1000).toFixed(1)+' s')
+      +' · flags 0x'+((d.flags|0).toString(16).toUpperCase());
   }catch(e){
     S('gsub','连接中断','disconnected');
+    setMsg('浏览器连不上 ESP32 —— 检查是否还连着 QSM-Monitor 热点','Browser cannot reach the ESP32 — check Wi-Fi connection');
     document.getElementById('stale').classList.add('on');
   }
 }

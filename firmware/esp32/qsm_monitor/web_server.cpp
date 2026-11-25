@@ -19,24 +19,24 @@ static void handleRoot()
 
 static void handleState()
 {
-    char buf[448];
+    char buf[480];
     if (!s_hasState) {
-        snprintf(buf, sizeof(buf), "{\"valid\":false,\"good\":%lu,\"bad\":%lu,\"alert_grade\":%d,\"alert_occ\":%d}",
-                 (unsigned long)link_goodFrames(), (unsigned long)link_badFrames(),
+        snprintf(buf, sizeof(buf), "{\"valid\":false,\"good\":%lu,\"bad\":%lu,\"rx\":%lu,\"alert_grade\":%d,\"alert_occ\":%d}",
+                 (unsigned long)link_goodFrames(), (unsigned long)link_badFrames(), (unsigned long)link_rxBytes(),
                  ALERT_GRADE, ALERT_OCC);
     } else {
         snprintf(buf, sizeof(buf),
             "{\"valid\":true,\"seq\":%lu,\"ms\":%lu,\"datetime\":\"%s\","
             "\"in\":%u,\"out\":%u,\"occ\":%d,\"q50\":%lu,\"q100\":%lu,"
-            "\"grade\":%u,\"flags\":%u,\"pred\":%u,\"predn\":%u,\"beams\":%u,"
-            "\"good\":%lu,\"bad\":%lu,\"age\":%lu,"
+            "\"grade\":%u,\"flags\":%u,\"pred\":%u,\"predn\":%u,\"beams\":%u,\"i2c\":%u,"
+            "\"good\":%lu,\"bad\":%lu,\"rx\":%lu,\"age\":%lu,"
             "\"alert_grade\":%d,\"alert_occ\":%d}",
             (unsigned long)s_state.seq, (unsigned long)s_state.uptimeMs, s_state.datetime,
             s_state.countIn, s_state.countOut, s_state.occupancy,
             (unsigned long)s_state.q50Ms, (unsigned long)s_state.q100Ms,
             s_state.grade, s_state.flags,
-            s_state.predOcc, s_state.predN, s_state.beams,
-            (unsigned long)link_goodFrames(), (unsigned long)link_badFrames(),
+            s_state.predOcc, s_state.predN, s_state.beams, s_state.i2cSeen,
+            (unsigned long)link_goodFrames(), (unsigned long)link_badFrames(), (unsigned long)link_rxBytes(),
             (unsigned long)link_ageMs(),
             ALERT_GRADE, ALERT_OCC);
     }
