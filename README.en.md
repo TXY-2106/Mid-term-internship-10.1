@@ -1,6 +1,6 @@
 <div align=center>
 
-[中文](README.md) ｜ **English** ｜ [Technical Proposal](docs/proposal.md)
+[中文](README.md) ｜ **English** ｜ [Technical Proposal](docs/proposal.en.md)
 
 </div>
 
@@ -8,7 +8,7 @@
 
 > UL–LICHPU Smart Campus Living Lab · Student Project · 15 ECTS · 12-week delivery cycle
 >
-> Current stage: solution confirmed; procurement and prototype build underway (infrared detection + STM32 edge acquisition + ESP32 connectivity)
+> Current stage: prototype integrated and under field validation (infrared beam counting + STM32 edge acquisition + ESP32 connectivity + historical headcount prediction)
 
 > Click a section title to expand it.
 
@@ -22,7 +22,8 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 
 - Anonymously sense entry / exit flow, occupancy and queue-length level in the selected service area
 - Determine the crowding status (idle / normal / busy) from occupancy and queue level
-- Publish the current status and historical trend in real time through a web dashboard, with threshold alerts
+- Predict queue length from the mean occupancy of the same slot over the last 7 days
+- Publish the current status, level trend and prediction in real time through a web dashboard, with threshold alerts
 - Store raw counts locally and export them after each experiment for comparative analysis
 
 **Users and beneficiaries**
@@ -36,7 +37,8 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 | --- | --- |
 | Sensing | 4 × E18-D80NK infrared photoelectric switches: 2 mounted on either side of the passage to determine entry / exit by trigger order; 2 placed along the queue at roughly 50% and 100% positions as queue-length threshold detectors. No cameras, no visible-light images |
 | Edge acquisition | STM32F103C8T6: 1 kHz timed sampling, entry / exit counting, queue-level classification, DS3231 offline timestamps, SD card raw logs |
-| Connectivity and display | ESP32 (CH340): receives data over UART, reports over Wi-Fi and hosts the web dashboard |
+| Connectivity and display | ESP32 (CH340): receives data over UART, hosts its own Wi-Fi access point and the web dashboard at the fixed address 192.168.4.1 |
+| History and prediction | The STM32 keeps a 7-day × 96-slot (15 min) history table and the SD card saves one `HYYMMDD.CSV` per day; the prediction is the mean occupancy of the same slot over the last 7 days, today excluded |
 | Power | 5V/3A |
 
 <details>
@@ -46,10 +48,11 @@ Service counters on campus — canteen pick-up, library borrowing and enquiry de
 
 ```
 E18 entry/exit ×2 ─┐
-                   ├─► STM32 ──SPI──► SD card (raw logs)
+                   ├─► STM32 ──SPI──► SD card (events.csv / status.csv / HYYMMDD.CSV)
 E18 queue ×2 ──────┘      │
-                          ├──I²C──► DS3231 (offline timestamps)
-                          └──UART──► ESP32 ──Wi-Fi──► web dashboard
+                          ├──I²C──► DS3231 (offline timestamps, basis of the history slots)
+                          ├──RAM──► 7-day × 96-slot history table ──► predicted headcount
+                          └──UART──► ESP32 ──Wi-Fi──► web dashboard (live status / level / prediction / reset)
 ```
 
 **Queue level rules**
@@ -68,7 +71,7 @@ E18 queue ×2 ──────┘      │
 
 **Scope**
 
-Queue length in this phase is expressed as a **three-level discrete classification** (low / about half / full); continuous counts or waiting minutes are not provided. Continuous length estimation and a waiting-time model are left for later iterations.
+Queue length in this phase is expressed as a **three-level discrete classification** (low / about half / full); continuous counts or waiting minutes are not provided. Continuous length estimation and a waiting-time model (Little's Law) are left for later iterations. The predicted headcount is a historical mean, so it only appears once at least one complete historical day exists; the dashboard shows how many days contributed.
 
 **Core deliverables**: working prototype (acquisition + storage + wireless reporting) + web dashboard (real-time status / historical trend / alerting) + verification evidence against manual counting
 

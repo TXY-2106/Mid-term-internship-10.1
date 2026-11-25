@@ -4,7 +4,7 @@
 
 </div>
 
-# A Dual-Beam Infrared Queue Monitor for Campus Service Counters
+# A Four-Beam Infrared Queue Monitor for Campus Service Counters
 
 > UL–LICHPU Smart Campus Living Lab · Mid-term Internship 10.1 · 15 ECTS · 12-week delivery cycle
 >
@@ -14,151 +14,194 @@
 
 Service counters on campus — canteen food stalls, library enquiry desks, print stations and coffee counters — form queues at peak times. Users cannot judge the waiting situation before joining, and service-point operators have no real-time view of demand distribution. The result is avoidable congestion and poorly targeted staffing.
 
-Camera-based crowd monitoring is technically effective but captures identifiable features. For a university deployment this is not acceptable, and anonymising network-level alternatives extract a substantial utility cost: prior work shows that Wi-Fi session data must be degraded to hourly granularity with added noise before it can be shared [4].
+Camera-based crowd monitoring is technically effective but captures identifiable features. For a university deployment this is not acceptable, and anonymising network-level alternatives extracts a substantial utility cost: prior work shows that Wi-Fi session data must be degraded to hourly granularity with added noise before it can be shared [4].
 
-This project takes a different route. Rather than sensing what people look like or which devices they carry, it senses **when they cross a boundary**. Two pairs of infrared photoelectric beams mark the tail and the head of a single-file queue lane. Counting crossings in each direction yields the number of people waiting directly, with no imaging device and no identity, and arrival and service rates follow from the same events. The proposal is deliberately narrow: one well-defined queue geometry, one sensing principle, one edge node.
+This project takes a different route. Rather than sensing what people look like or which devices they carry, it senses **when they cross a boundary**. Four infrared photoelectric beams divide the work: two at the entrance are compared for trigger order to decide entry versus exit, and two along the queue lane sit at roughly the 50 % and 100 % positions as queue-length thresholds. The proposal is deliberately narrow: one well-defined queue geometry, one sensing principle, two low-cost development boards.
 
 ## 2. Objectives and Scope
 
-| ID | Objective | Criterion | Traces to |
+| ID | Objective | Metric | Acceptance |
 | --- | --- | --- | --- |
-| O1 | Queue length estimation | Error ≤ ±2 persons, target ±1, within a design range of 0–20 persons | A1 |
-| O2 | Waiting-time estimation | Derived from Little's Law; agreement with manual observation within the tolerance fixed at the requirements gate | A2 |
-| O3 | End-to-end latency | ≤ 5 s from an on-site change to a display update | A3 |
-| O4 | Operational stability | ≥ 4 h continuous operation without failure | A4 |
-| O5 | Privacy preservation | No imaging device of any kind; aggregate counts only | A5 |
-| O6 | Cost and replicability | Bill of materials below ¥150 per service point; UL–LICHPU differences documented | A9 |
+| O1 | Queue-length grading | Three-level grading (Few / About half / Full) agrees with manual observation ≥ 80 % of the time | A1 |
+| O2 | Crowding-state decision | Combining occupancy and grade, accuracy against manual observation ≥ 80 % | A2 |
+| O3 | End-to-end latency | Field change to web update ≤ 5 s (report every 250 ms, page polls every 400 ms) | A3 |
+| O4 | Operational stability | ≥ 3 h continuous operation without crash or data loss | A4 |
+| O5 | Privacy protection | No imaging device of any kind; aggregated counts only | A5 |
+| O6 | Historical headcount prediction | Predict from the mean occupancy of the same 15-minute slot over the last 7 days, and report how many days contributed | A8 |
+| O7 | Cost and replicability | Bill of materials below ¥150 per service point; UL vs LICHPU deployment differences documented | A9 |
 
-**In scope:** anonymous queue-length and waiting-time estimation for a single-file queue lane; local display; web dashboard with historical trend and alerting; verification against a manual baseline.
+**In scope**: anonymous entry/exit counting, occupancy, three-level queue grading and same-slot historical prediction for a single-file lane; long-term local SD-card logging; a live dashboard with status, trend, prediction and alerting; validation against a manual baseline.
 
-**Out of scope:** personal identification; face or gait recognition; attendance or law-enforcement use; automated decisions about university staffing; sensing in open areas without a defined queue lane.
+**Out of scope**: continuous queue-length estimation and waiting-time in minutes (Little's-Law-style time models are deferred to a later iteration); personal identification; face or gait recognition; attendance or law-enforcement use; automated staffing decisions; sensing in open areas without a defined queue lane.
 
 ## 3. Related Work
 
-**Camera-based crowd analysis** is the established approach and remains the accuracy reference, but it is privacy-invasive and costs more. **LiDAR-based queue monitoring** avoids imagery entirely by clustering point clouds, one cluster per person [2]; it is privacy-preserving and light-independent, but a single 360° LiDAR dominates the bill of materials and the published work is a demonstration without quantitative accuracy.
+**Camera-based crowd analysis** is the incumbent approach and the accuracy reference, but it is privacy-invasive and more expensive. **LiDAR-based queue monitoring** avoids imaging entirely by clustering point clouds (one cluster per person) [2]; it is privacy-friendly and light-independent, but a single 360° LiDAR dominates the bill of materials, and the published work is a demonstration without quantitative accuracy.
 
-**Infrared array sensing** in queues has been demonstrated with an MLX90640 32×24 array on an STM32L476, detecting up to six persons per queue with 93 % accuracy at sub-80 cm spacing [3]. This establishes that thermal sensing works in queues but also documents its density limit: resolution, not cost, becomes the binding constraint.
+**Infrared array sensing** has been demonstrated in queues: an MLX90640 32×24 array on an STM32L476 detected up to six persons per queue with 93 % accuracy at sub-80 cm spacing [3]. This confirms that thermal sensing works in queues and also documents its density limit — resolution, not cost, becomes the binding constraint.
 
-**Bidirectional infrared beam counting** is the closest match to this proposal. dos Santos et al. [1] built a counter from an ESP32 and an **E18-D80NK** sensor with RTC and microSD logging, and validated it in two real deployments: bus doors (**91.45 %**) and **university restaurant ticket gates (98.65 %)**. Their counting rule — a crossing counts only if two sensors activate within a **300 ms** window, direction taken from activation order — directly addresses the false-trigger and direction-ambiguity problems that plague single-beam counters. Their error taxonomy identifies simultaneous passage as the dominant residual source.
+**Bidirectional infrared beam counting** is closest to this project. dos Santos et al. [1] built a counter from an ESP32 and **E18-D80NK** sensors with RTC and microSD logging, validated in two real deployments: a bus door (**91.45 %**) and a **university canteen turnstile (98.65 %)**. Their counting rule — **a crossing is counted only when both sensors trigger within a 300 ms window**, with direction given by the trigger order — removes the false triggers and directional ambiguity that plague single-beam counters. Their error breakdown also identifies **two people passing together** as the main residual error source.
 
-**Gap.** Published queue-monitoring work reports either sensing performance in laboratory conditions or flow-counting accuracy at a gate; none reports **queue-length estimation error against a manual baseline** together with a **waiting-time estimate derived from Little's Law**, at a bill of materials compatible with replication. That combination, for a single-file lane, is the contribution of this project.
+**Gap.** Published queue-monitoring work reports either sensing performance in laboratory conditions or flow-counting accuracy at a gate; none reports, at a replicable bill of materials, **queue-grade agreement against a manual baseline** together with **same-slot prediction from historical data**. For a single-file lane, that combination is the contribution of this project.
 
 ## 4. Technical Approach
 
 ### 4.1 System overview
 
 ```
- entry gate (2 beams) --EXTI--> direction FSM --> lambda_in   (+)
- exit  gate (2 beams) --EXTI--> direction FSM --> lambda_out  (-)
-                                   |
-                     STM32F103C8T6 edge node
-                     ├── L(t)  = Σin − Σout              occupancy
-                     ├── W     = mean(L) / mean(lambda)  Little's Law
-                     └── L_mod = lambda / (mu − lambda)  M/M/1 cross-check
-                                   |
-                 OLED (local)  +  MQTT (3 s)  →  web dashboard
-                                   |
-                          microSD event log (evidence)
+ Entrance A/B (PB12/PB13)     Queue 50 %/100 % (PB14/PB15)
+        │ 1 kHz sampling, 5 ms debounce
+        ▼
+ STM32F103C8T6 edge node
+   ├── direction FSM: 300 ms two-beam coincidence → in / out / occupancy
+   ├── grading FSM: upgrade after 5 s of continuous blocking, downgrade after 15 s clear,
+   │                 cross-checked against occupancy
+   ├── history table: 7 days × 96 slots (15 min), completed slots only
+   ├── I²C1 → DS3231 time base
+   └── SPI1 → SD card: events.csv / status.csv / HYYMMDD.CSV
+        │ UART 115200, one frame every 250 ms: $QSM,…*CRC8
+        ▼
+ ESP32 soft-AP "QSM-Monitor" at 192.168.4.1
+        │ Wi-Fi
+        ▼
+ Phone / laptop dashboard: live status · grade trend · predicted headcount ·
+                           four-beam state · reset buttons
+        ▲
+        └── downlink command $QSR,<cmd>*CRC8 (reset counters / clear history / reset all)
 ```
 
-### 4.2 Queue zone and deployment geometry
+Sensing and networking are split across two boards: an ESP32 Wi-Fi reconnect or reset never interrupts STM32 sampling or card writes, and moving to another site only means swapping the gateway.
 
-The monitored zone is a single-file queue lane: 60–90 cm wide, up to 6 m long, with one entry at the tail and one exit 0.5 m before the counter. The zone boundary is defined by the two gates; nothing inside the zone is sensed.
+### 4.2 Queue zone and mounting geometry
 
-Each gate uses two **E18-D80NK** diffuse-reflective sensors (adjustable detection range 3–80 cm) mounted 10 cm apart along the direction of travel at approximately 100 cm height. The 10 cm spacing combined with a walking speed of 1.2–1.4 m/s gives a 70–85 ms separation between beam interruptions, comfortably above the 20 ms debounce and within the 300 ms coincidence window.
+The monitored zone is a single-file queue lane: 60–90 cm wide, up to 6 m long. At the entrance, two **E18-D80NK** sensors are spaced 10 cm apart along the walking direction at roughly 100 cm height and decide entry versus exit. Two more sit at about 50 % and 100 % (tail) of the lane, also at roughly 100 cm, for grading. All four are diffuse-reflective with a 3–80 cm adjustable range, calibrated one by one at installation.
 
-### 4.3 Counting and direction discrimination
+With 10 cm spacing and a 1.2–1.4 m/s walking speed, the two beams are blocked about 70–85 ms apart — well above the 5 ms debounce and inside the 300 ms coincidence window.
 
-Following [1], a crossing is registered only when **both** beams of a gate are activated within 300 ms; a single-beam activation is discarded as a false trigger. Direction follows from activation order: A-then-B is one direction, B-then-A the other. A 20 ms debounce rejects contact bounce, and a 2 s blocking timeout discards events in which a person remains within the beam.
+### 4.3 Counting and direction
 
-Each gate runs an independent finite state machine, so the entry and exit gates cannot interfere with one another:
-
-```
-IDLE --A or B interrupted--> HALF_HIT (timestamp)
-HALF_HIT --second beam within 300 ms--> direction resolved → emit event → IDLE
-HALF_HIT --timeout, or beam blocked > 2 s--> discard → IDLE
-```
-
-### 4.4 Occupancy accounting and drift correction
-
-Queue length follows from conservation of flow:
+Following [1], **a crossing is counted only when both entrance beams trigger within 300 ms**; a single-beam trigger is discarded as a false event. Direction follows the trigger order: A then B is an entry, B then A an exit. The firmware samples at 1 kHz with a 5-sample shift-register debounce (5 ms equivalent) and applies a 2 s blocking timeout to discard gestures that dwell between the beams.
 
 ```
-L(t) = Σ in − Σ out ,  clamped at L ≥ 0
+IDLE --A or B blocked--> HALF_HIT (timestamp)
+HALF_HIT --second beam within 300 ms--> direction decided → event → IDLE
+HALF_HIT --timeout, or blocked longer than 2 s--> discard → IDLE
 ```
 
-Occupancy accounting has one structural weakness: **error accumulates**. A missed crossing is never recovered, so a systematic bias causes L to drift without bound. Two mitigations are applied. First, the dual-beam coincidence rule removes the largest class of false events. Second, an **empty-zone re-zeroing** is performed when both gates have been idle for a sustained interval and the most recent event was an exit, which indicates an empty queue. Re-zeroing events are logged, so the correction itself is auditable.
+Occupancy is `Σin − Σout`, clamped at ≥ 0. Counting errors accumulate, so grading is always cross-checked against occupancy: a low headcount cannot produce "Full". This iteration does not auto-reset occupancy; drift is handled through manual baseline calibration and log review.
 
-### 4.5 Waiting time from Little's Law
+### 4.4 Queue-length grading
 
-With queue length and arrival rate measured independently, waiting time follows from Little's Law:
+| State | Condition |
+| --- | --- |
+| Few | the 50 % beam is not continuously blocked |
+| About half | the 50 % beam has been blocked ≥ 5 s and the 100 % beam is clear |
+| Full | the 100 % beam has been blocked ≥ 5 s |
+
+- **Sustained blocking** separates "standing in the queue" from "walking past": a moving crowd only produces short pulses.
+- **Hysteresis**: upgrades apply immediately, downgrades require 15 s of continuous clear lane, avoiding flicker.
+- **Cross-check**: compared with occupancy from the gate counter; a low headcount cannot yield "Full", and a conflict raises a flag in the uplink frame.
+
+### 4.5 Historical headcount prediction
+
+Queue length follows a clear daily rhythm (lunch peaks, class breaks), so the predictor uses the historical mean of the same slot:
 
 ```
-W = mean(L over window) / mean(lambda over window)      window = 5 min
+pred(t) = mean( occ(d, t) ),  d ∈ the last 7 days that are already complete
+pred_n  = number of days that contributed (0 = not enough history)
 ```
 
-A time-averaged formulation is required because Little's Law relates long-run averages; dividing an instantaneous L by an averaged arrival rate would be biased. When λ falls below a minimum threshold, the state is reported as **idle** and W as unavailable, rather than reporting an unbounded value.
+- The day is cut into **15-minute × 96 slots**, one record per person per slot; the STM32 keeps a 7×96 `uint8` table (672 B) in RAM without a large buffer.
+- **Today is excluded**: an unfinished day would bias the mean downward, so at least one complete historical day is required before a value appears.
+- Minute-level samples are written to the SD card (`HH:MM,occ`); on power-up the last 8 days are read back to rebuild the table, so prediction survives a reboot.
+- Predicted value and contributing-day count travel in the 4 Hz uplink frame; the dashboard shows "predicted headcount / based on N days" and displays "—" rather than 0 when history is insufficient.
 
-Because the exit gate measures the service rate μ, the M/M/1 model provides a second, independent prediction,
+Prediction depends on a real clock (DS3231). Without it the system cannot tell what "the same slot" means, so the prediction stays unavailable and is shown as such rather than as a plausible-looking number.
 
-```
-L_model = lambda / (mu − lambda) ,     W_model = 1 / (mu − lambda)
-```
+### 4.6 Time base and data storage
 
-which uses no occupancy information at all. The divergence `|L − L_model|` is reported as a consistency indicator and used to flag anomalous conditions such as a person leaving the queue without crossing the exit gate.
+- **DS3231** (I²C1, address 0x68, PB6/PB7) supplies offline timestamps. Every I²C wait has a timeout, consecutive failures trigger a 9-clock bus recovery, and a module that is missing at boot is retried every 10 s.
+- **SD card** (SPI1, CS = PA4) is mounted with FatFs R0.16 and receives three files:
 
-Queue status is classified by dual thresholds on L and W, so that the reported state reflects both how many people are waiting and how long they have waited.
+| File | Content | Rate |
+| --- | --- | --- |
+| `events.csv` | `datetime,uptime_ms,beam,level` | every edge |
+| `status.csv` | `datetime,uptime_ms,in,out,occ,q50_ms,q100_ms,grade,flags` | 1 Hz |
+| `HYYMMDD.CSV` | `HH:MM,occ`, one file per day | every minute |
 
-### 4.6 Edge software
+- 8.3 short names are used; the card must be FAT16/FAT32 and ≤ 32 GB. `f_sync` runs every 10 s, so a power cut loses at most 10 s.
+- Filesystem timestamps are fixed at 2020-01-01 (`FF_FS_NORTC`) and are not used as a time reference; the `datetime` column is authoritative.
 
-The firmware is a bare-metal, time-sliced application in four layers — driver, service, application, HAL — with an interrupt-to-task event ring buffer so no algorithmic work executes in interrupt context.
+### 4.7 Edge software and communication
+
+The firmware is a bare-metal time-slice architecture: everything under `core/` is hardware-independent C with unit tests that run on a PC, while `stm32/` and `esp32/` hold the hardware and networking specifics.
 
 | Module | Responsibility |
 | --- | --- |
-| `e18` | Four EXTI channels, debounce, direction FSM, event queue |
-| `tracker` | Occupancy, λ, μ, W, M/M/1 cross-check, status |
-| `ds3231` / `sdlog` | Timestamps and auditable event logging |
-| `oled` / `esp_at` | Local display, MQTT publication |
-| `main` | 1 ms tick; 10 ms FSM; 1 s display and statistics; 3 s publish; 5 s log |
+| `gate_counter` | two-beam direction FSM, in/out counts, occupancy |
+| `queue_grade` | 50 %/100 % threshold grading, hysteresis, occupancy cross-check |
+| `qsm_history` | 15-minute slots, date conversion, prediction mean, line formatting |
+| `hist_store` / `data_logger` / `bsp_sd_disk` | FatFs, SD driver, the three logs and read-back |
+| `protocol` | uplink frame codec, CRC-8, downlink command frame |
+| `bsp_e18` / `bsp_uart` / `bsp_ds3231` | 1 kHz sampling and debounce, UART, RTC |
 
-The local display updates within 1 s and MQTT publishes every 3 s, satisfying the 5 s end-to-end latency criterion with margin.
+Task cadence:
 
-### 4.7 Privacy by design
+| Period | Work |
+| --- | --- |
+| 1 kHz (SysTick) | sample four beams, debounce |
+| 10 ms | drain edges, advance FSMs, grade timing |
+| 250 ms | build and send the uplink frame (4 Hz) |
+| 1 s | write `status.csv`, refresh the debug line |
+| 10 s | `f_sync` |
+| 60 s | one history-table record |
 
-The system contains **no imaging sensor of any kind**. It measures the interruption of two diffuse infrared beams, from which only a count and a direction are derived. No appearance, gait, face, device address or personal identifier is captured at any stage. Only aggregate counts and rates leave the node over MQTT; raw crossing events remain on the local SD card as verification evidence and are not transmitted.
+Uplink frame (`*` marks a two-digit hexadecimal CRC-8):
+
+```
+$QSM,<seq>,<ms>,<datetime>,<in>,<out>,<occ>,<q50_ms>,<q100_ms>,<grade>,<flags>,<pred>,<pred_n>,<beams>*<CRC8>
+```
+
+The last three fields were added later; the parser reads by index and defaults them to 0, so old and new firmware interoperate. The ESP32 runs in **AP mode**, hosting the dashboard at the fixed address `192.168.4.1` with no dependency on an existing network; the page polls `/api/state` every 400 ms and shows an orange banner when no frame has arrived for 2.5 s.
+
+### 4.8 Privacy design
+
+The system contains **no imaging sensor of any kind**. It measures whether infrared beams are interrupted, from which it derives one count, one direction and two threshold states. No appearance, gait, face, device address or personal identifier is captured. Only aggregated counts and grades leave the node; raw crossing events stay on the local SD card as validation evidence and are never uploaded.
 
 ## 5. Evaluation Plan
 
-| ID | Verification method |
+| ID | Verification |
 | --- | --- |
-| A1 | Simultaneous manual headcount over ≥ 5 repeats across densities 0–20 persons; report mean absolute error and an error-versus-density curve |
-| A2 | Compare classified status with manual observation across idle, normal and peak scenarios; report accuracy |
-| A3 | Compare stopwatch observation with system log timestamps; report latency distribution |
-| A4 | Continuous 4 h operation with SD event log; report failures |
-| A5 | Design and data review: confirm no imaging device, no biometric processing, aggregate-only transmission |
-| A6 | End-to-end demonstration with both gates active |
-| A7 | Unit tests of the direction FSM and occupancy tracker using injected synthetic events; integration and system tests traced to O1–O6, with the SD event log and manual count sheets as evidence |
-| A8 | Live demonstration of real-time status, historical trend and alerting |
-| A9 | Documented comparison of UL and LICHPU deployment, including cost, mounting and infrastructure dependencies |
+| A1 | Observe the three grades side by side with manual observation, ≥ 5 repeats covering all three states; report agreement rate |
+| A2 | Decide crowding state from occupancy plus grade in idle / normal / peak scenarios against manual observation; report accuracy |
+| A3 | Compare stopwatch observations with system log timestamps; report the latency distribution from field change to web update |
+| A4 | Run continuously for 3 h with SD logging and count crashes and data loss (via `seq` continuity) |
+| A5 | Design and data review: no imaging device, no biometric processing, aggregated values only |
+| A6 | End-to-end demonstration with all four beams active: entry/exit counts plus grading thresholds |
+| A7 | Unit tests of the direction FSM, grading FSM, historical prediction and frame codec using injected synthetic events; integration and system tests against O1–O7, evidenced by SD logs and manual count sheets |
+| A8 | On-site demonstration of live status, grade trend, predicted headcount and alerting |
+| A9 | Document the UL vs LICHPU deployment comparison: cost, installation and infrastructure dependencies |
 
-The protocol follows [1], which validated a comparable counter by repeated simultaneous manual and automated counting and reported both aggregate accuracy and a breakdown by error type.
+The evaluation protocol follows [1], which validated a comparable counter through repeated simultaneous manual and automatic counting and reported both overall accuracy and an error-type breakdown.
 
 ## 6. Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Simultaneous passage of two persons | Under-count, then drift | Dual-beam coincidence rule; single-file lane geometry; error-versus-density characterisation. This was the dominant error in [1] |
-| Accumulated drift in occupancy | Unbounded queue-length error | Empty-zone re-zeroing; auditable correction log; M/M/1 consistency check |
-| Person standing within a beam | Spurious or blocked events | 2 s blocking timeout |
-| Site lacks a single-file lane | Method not applicable | Confirm the service point and queue geometry in weeks 1–2, before the design gate |
-| Reported accuracy of [1] is flow accuracy, not queue-length accuracy | Over-stated expectation | State explicitly that occupancy error accumulates; verify against manual headcount rather than transferring the 91.45 % figure |
-| Component tolerance (E18-D80NK detection range varies) | Detection zone inconsistent | Set each sensor's potentiometer against a physical gauge during installation; document the procedure for replication |
+| Two people passing together | missed counts, hence occupancy drift | two-beam coincidence rule; single-file geometry; cross-check with grading. This is the main error source in [1] |
+| Occupancy drift | headcount and grade gradually lose accuracy | grading relies on the beams, occupancy only cross-checks; manual baseline review with logs. No auto-reset in this iteration |
+| Missing or disconnecting clock | history cannot be filed by slot; prediction unavailable | I²C timeouts throughout, bus recovery, 10 s retry when absent at boot; the dashboard shows "not enough history" instead of 0 |
+| Insufficient accumulated history | no prediction on the first day | expectation stated explicitly: at least one complete historical day is needed, and the contributing-day count is always shown |
+| Crosstalk or mounting drift | false or missed triggers | 5 ms debounce; 10 cm spacing; per-unit calibration at installation |
+| Someone dwelling in a beam | false or blocking events | 2 s blocking timeout |
+| No single-file lane at the chosen site | the method does not apply | confirm the service point and queue geometry before the design gate |
+| **[1]'s accuracy is flow accuracy, not headcount accuracy** | overstated expectations | measure grade agreement against a manual baseline rather than quoting 91.45 % |
 
 ## 7. Timeline
 
-The project follows the 12-week module timeline and gates defined in the repository README. Hardware and software milestones map as follows: bench verification of one gate in week 4; both gates and occupancy tracking in week 5; integrated prototype with dashboard in week 6; calibration of threshold, debounce and window parameters in week 7; verification campaign in week 8; analysis and design freeze by week 10; report and demonstration by week 12.
+The project follows the 12-week timeline and gates defined in the repository README. Hardware and firmware milestones: weeks 1–4 confirm the approach and queue geometry and complete a single-gate bench test; weeks 5–6 wire all four beams and take the counting and grading FSMs up; week 7 adds historical prediction and SD persistence; week 8 the dashboard and real-time behaviour; weeks 9–10 field validation and design freeze; weeks 11–12 the report and demonstration.
 
-**Deliverables:** integrated working prototype; real-time local display; web dashboard with historical trend; source repository and documentation; verification evidence against the manual baseline.
+**Deliverables**: a working integrated prototype; a live dashboard with prediction and reset controls; the source repository and documentation; validation evidence against a manual baseline.
 
 ## 8. References
 
