@@ -262,6 +262,17 @@ HH:MM,occ
 | `APP_TASK_LOGFLUSH_MS` | `10000u` | `f_sync` 落盘 |
 | `APP_TASK_HISTORY_MS` | `60000u` | 历史记录与预测 |
 
+### 时序单元首次使用
+
+DS3231 出厂/换电池后 `OSF`（0x0F 的 bit7）置位，7 个时间寄存器是 `2000-01-01T00:00:00`。
+**装了纽扣电池也一样**：电池只负责掉电后继续走时，第一次仍必须写一次时间。
+
+`bsp_ds3231_is_valid()` 会检查 `OSF` 已清 + 年份 2020–2099 + 月日在合法范围；
+不满足就返回 0，`app_main.c` 的 `rtc_bring_up()` 据此把 `s_rtc_ok` 置 0，
+于是时间戳输出 `-`、历史与预测都不累积，网页上"时序单元"显示未就绪。
+点网页的"校准到本机时间"后 `bsp_ds3231_set_iso8601()` 写入并清 `OSF`，
+`is_valid()` 立即为真，芯片靠电池继续走时。
+
 ### 网页复位（USART2 收命令，不用按复位键）
 
 ESP32 下发一行 `$QSR,<cmd>*<CRC8>\n`：
@@ -271,6 +282,8 @@ ESP32 下发一行 `$QSR,<cmd>*<CRC8>\n`：
 | 1 | `gate_init()` / `grade_init()` 归零，`in`/`out`/`occ`/`grade`/`pred` 清零 |
 | 2 | `qsm_hist_init()` + `hist_store_clear()`，删掉近 8 天的 `H*.CSV` |
 | 3 | 1 + 2 |
+| `$QST` | 校时：`$QST,2026-11-26T16:31:00*76` → `bsp_ds3231_set_iso8601()` 写 7 个时间寄存器并清 `OSF`（bit7 of 0x0F），成功后 `s_rtc_ok = 1` 并回读 SD 历史 |
+
 
 STM32 侧由 `USART2_IRQHandler` 收进 128 B 环形缓冲，主循环 `bsp_uart_poll_cmd()` 非阻塞取整行，
 `qsm_cmd_parse()` 校验后执行；对应网页上的“清零计数 / 清空历史 / 全部复位”三个按钮。

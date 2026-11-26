@@ -122,6 +122,14 @@ h1 .en{font-size:12px;font-weight:400;color:var(--mut);letter-spacing:.3px}
   <div class="hint">清零计数 = 进出人数与在场人数归零；清空历史 = 删除 SD 卡最近 8 天的记录并重新积累<span class="en">Counters: set in/out/people to 0. History: delete the last 8 daily files on the SD card.</span></div>
 </div>
 
+<div class="card">
+  <div class="k" style="font-size:12px;color:#777">时间校准（时序单元）<span class="en">Set clock (RTC)</span></div>
+  <div class="kv"><div class="k">时序单元当前时间<span class="en">RTC time</span></div><div id="rtcTime" class="v">—</div></div>
+  <button class="btn" onclick="syncTime()">校准到本机时间<span class="en">Set to this device's clock</span></button>
+  <div class="hint">DS3231 没电或从没设过时间时会显示 2000/1/1，此时时间戳为空、历史与预测都不会累积；点上面的按钮把手机/电脑的当前时间写进芯片。<span class="en">An unset or dead-battery DS3231 reads 2000-01-01; timestamps stay empty and history never accumulates. Tap to write this device's clock into the chip.</span></div>
+  <div class="hint" id="timeMsg">—</div>
+</div>
+
 <div class="foot"><span id="meta">—</span></div>
 </div>
 <script>
@@ -150,6 +158,24 @@ async function cmd(n){
     document.getElementById('meta').textContent='复位命令发送失败 / reset failed';
   }
 }
+function isoLocal(d){
+  function p2(n){ return (n<10?'0':'')+n; }
+  return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+'T'
+        +p2(d.getHours())+':'+p2(d.getMinutes())+':'+p2(d.getSeconds());
+}
+async function syncTime(){
+  const el=document.getElementById('timeMsg');
+  const iso=isoLocal(new Date());
+  if(el) el.textContent='发送中 / sending: '+iso;
+  try{
+    const r=await fetch('/api/settime?iso='+encodeURIComponent(iso),{cache:'no-store'});
+    const j=await r.json();
+    if(el) el.textContent= (j && j.ok) ? ('已发送 / sent: '+iso+' — 1 秒内时序单元应变绿 / RTC should turn green within 1 s')
+                                       : ('发送失败 / send failed: '+iso);
+  }catch(e){
+    if(el) el.textContent='请求失败 / request failed: '+e;
+  }
+}
 async function tick(){
   try{
     const r=await fetch('/api/state',{cache:'no-store'});
@@ -164,6 +190,7 @@ async function tick(){
         setMsg('还没收到任何字节 —— 查 STM32 是否上电、PA2→GPIO16、PA3→GPIO17、是否共地',
                'No bytes yet — check STM32 power, PA2 to GPIO16, PA3 to GPIO17, common ground');
       }
+      var rt0=document.getElementById('rtcTime'); if(rt0) rt0.textContent='—';
       document.getElementById('stale').classList.add('on');
       return;
     }
@@ -172,6 +199,8 @@ async function tick(){
     S('gname',NAMES[g],NAMES_EN[g]);
     const hasTime=d.datetime && d.datetime!=='-';
     S('gsub',hasTime?d.datetime:'RTC 未就绪',hasTime?d.datetime:'RTC not ready');
+    var rt=document.getElementById('rtcTime');
+    if(rt) rt.textContent = hasTime ? d.datetime.replace('T',' ') : '—';
     document.getElementById('occ').textContent=d.occ;
     document.getElementById('cin').textContent=d.in;
     document.getElementById('cout').textContent=d.out;
@@ -207,7 +236,7 @@ async function tick(){
       const i2c=d.i2c|0, rtcOk=(fl&1)!==0;
       let txt='', cls='hint';
       if(rtcOk){ txt='I2C 总线正常：0x68 已应答 / bus OK, 0x68 ACK'; cls='hint ok'; }
-      else if(i2c&1){ txt='0x68 有应答但读取失败 —— 模块在线，查模块供电稳定性和杜邦线 / 0x68 ACKs but reads fail: check wiring contact and module power'; cls='hint warn'; }
+      else if(i2c&1){ txt='0x68 在线，但时间还没设过（读回 2000 年）或读取失败 —— 点下方「校准到本机时间」即可 / 0x68 present but clock unset (reads 2000) or reads fail: use "Set to this device\'s clock" below'; cls='hint warn'; }
       else if(i2c&2){ txt='只发现 0x57（模块上的 EEPROM），0x68 无应答 —— 模块没上电或地址不符 / only 0x57 found: module unpowered or wrong address'; cls='hint bad'; }
       else if(i2c&4){ txt='发现其他器件但 0x68 无应答 —— 可能 SDA/SCL 接到了别的器件或型号不符 / other device answered, 0x68 absent'; cls='hint bad'; }
       else { txt='总线上没有任何应答 —— 查 VCC=3.3V、GND 共地、SDA/SCL 是否接反与上拉电阻 / nothing on the bus: check VCC, GND, SDA/SCL and pull-ups'; cls='hint bad'; }

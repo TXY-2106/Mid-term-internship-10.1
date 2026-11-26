@@ -96,6 +96,21 @@ static void hist_reload(void)
 }
 
 /* ---------------- 初始化 ---------------- */
+/* 初始化 I2C1 并确认 DS3231 真正可用：器件在线 **且** 时间已校过。
+ * 全新芯片/换电池后读回 2000-01-01（OSF 置位），这时器件在线但时间不可用，
+ * 必须等网页校时；否则会把 2000 年的假时间戳写进 CSV 与历史表。 */
+static uint8_t rtc_bring_up(void)
+{
+    if (!bsp_ds3231_init()) {
+        return 0u;
+    }
+    if (!bsp_ds3231_is_valid()) {
+        bsp_uart_debug("[QSM] DS3231 online but clock unset - set time from web");
+        return 0u;
+    }
+    return 1u;
+}
+
 void app_init(void)
 {
     qsm_config_default(&s_cfg);
@@ -130,9 +145,9 @@ void app_init(void)
     bsp_uart_init();
     bsp_e18_init();
 
-    s_rtc_ok = bsp_ds3231_init();
+    s_rtc_ok = rtc_bring_up();
     if (!s_rtc_ok) {
-        bsp_uart_debug("[QSM] DS3231 not found, timestamps disabled");
+        bsp_uart_debug("[QSM] timestamps disabled until clock is set");
         rtc_scan();                /* 顺便扫总线，结果会随帧送到网页 */
     }
 
@@ -315,7 +330,7 @@ static void task_status(void)
             /* 连续 10 次读不到（多半是总线被从机拉死）：重新初始化 I2C1，
                自带 9 个 SCL 的总线恢复，不必再手动复位 STM32 */
             s_rtc_fail = 0u;
-            s_rtc_ok   = bsp_ds3231_init();
+            s_rtc_ok   = rtc_bring_up();
             bsp_uart_debug(s_rtc_ok ? "[QSM] DS3231 recovered"
                                     : "[QSM] DS3231 lost, retrying later");
         }
@@ -323,7 +338,7 @@ static void task_status(void)
         /* 开机时就没认到：每 10 s 再试一次。这样模块晚插、接触不良、
            或者上电顺序不对，都能自己恢复，不必重新上电。 */
         s_rtc_try = 0u;
-        s_rtc_ok  = bsp_ds3231_init();
+        s_rtc_ok  = rtc_bring_up();
         if (s_rtc_ok) {
             bsp_uart_debug("[QSM] DS3231 found, timestamps enabled");
             hist_reload();
@@ -385,10 +400,30 @@ static void task_cmd(void)
 {
     char    line[80];
     uint8_t cmd = 0u;
+    char    iso[20];
 
-    if (bsp_uart_poll_cmd(line, sizeof(line)) &&
-        qsm_cmd_parse(line, strlen(line), &cmd) == 0) {
+    if (!bsp_uart_poll_cmd(line, sizeof(line))) {
+        return;
+    }
+
+    if (qsm_cmd_parse(line, strlen(line), &cmd) == 0) {
         app_reset(cmd);
+        return;
+    }
+
+    /* 校时帧：$QST,YYYY-MM-DDThh:mm:ss*CRC
+     * 网页点"校准时间"时发下来。DS3231 掉电/换电池后时间会回到 2000-01-01，
+     * 写一次就恢复；顺便把 RTC 标记为可用并回读 SD 里的历史。 */
+    if (qsm_time_parse(line, strlen(line), iso, sizeof(iso)) == 0) {
+        if (bsp_ds3231_set_iso8601(iso)) {
+            s_rtc_ok   = 1u;
+            s_rtc_try  = 0u;
+            s_rtc_fail = 0u;
+            bsp_uart_debug("[QSM] time set from web");
+            hist_reload();
+        } else {
+            bsp_uart_debug("[QSM] time set failed");
+        }
     }
 }
 

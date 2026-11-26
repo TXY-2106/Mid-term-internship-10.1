@@ -58,4 +58,11 @@ uint32_t    link_ageMs(void);
  */
 bool        link_send_cmd(uint8_t cmd);
 
+/**
+ * 把 "YYYY-MM-DDThh:mm:ss"（19 字符）写入 STM32 的 DS3231：
+ * 发 $QST,<iso>*<CRC8>\n，STM32 收到后写芯片并清 OSF。
+ * @return true = 已写入串口
+ */
+bool        link_send_time(const char *iso);
+
 #endif /* QSM_SERIAL_LINK_H */

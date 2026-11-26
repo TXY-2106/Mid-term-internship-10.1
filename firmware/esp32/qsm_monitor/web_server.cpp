@@ -45,6 +45,23 @@ static void handleState()
     s_server.send(200, "application/json", buf);
 }
 
+/** GET /api/settime?iso=YYYY-MM-DDThh:mm:ss —— 把浏览器本地时间写进 DS3231 */
+static void handleSetTime()
+{
+    String iso;
+    bool   ok = false;
+
+    if (s_server.hasArg("iso")) {
+        iso = s_server.arg("iso");
+    }
+    if (iso.length() == 19u) {
+        ok = link_send_time(iso.c_str());
+    }
+
+    s_server.sendHeader("Cache-Control", "no-store");
+    s_server.send(200, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
+}
+
 /** POST/GET /api/reset?cmd=1|2|3 —— 网页复位按钮下发给 STM32 */
 static void handleReset()
 {
@@ -68,6 +85,7 @@ void web_begin()
     s_server.on("/", handleRoot);
     s_server.on("/api/state", handleState);
     s_server.on("/api/reset", handleReset);
+    s_server.on("/api/settime", handleSetTime);
     s_server.onNotFound([]() { s_server.send(404, "text/plain", "not found"); });
     s_server.begin();
 }

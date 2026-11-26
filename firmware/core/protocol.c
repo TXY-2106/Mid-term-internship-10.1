@@ -383,3 +383,121 @@ int qsm_cmd_parse(const char *line, size_t len, uint8_t *cmd)
     *cmd = (uint8_t)v;
     return 0;
 }
+
+/* ---------------- 校时帧 ---------------- */
+
+/**
+ * 校验 "$...*CRC" 结构：成功时把 '*' 的下标写入 *star。
+ * @return 0 成功；-1 格式错；-2 CRC 错
+ */
+static int frame_check(const char *line, size_t len, size_t *star)
+{
+    size_t  s = 0u;
+    size_t  cl = 0u;
+    uint8_t want = 0u;
+
+    if (line == NULL || star == NULL || len < 8u || line[0] != '$') {
+        return -1;
+    }
+    for (size_t i = 1u; i < len; i++) {
+        if (line[i] == '*') { s = i; break; }
+        if (line[i] == '\n' || line[i] == '\r') { break; }
+    }
+    if (s == 0u || s < 5u) {
+        return -1;
+    }
+    for (size_t i = s + 1u; i < len && cl < 2u; i++) {
+        if (line[i] == '\n' || line[i] == '\r') { break; }
+        cl++;
+    }
+    if (cl == 0u || parse_hex8(&line[s + 1u], cl, &want) != 0) {
+        return -1;
+    }
+    if (qsm_crc8((const uint8_t *)&line[1], s - 1u) != want) {
+        return -2;
+    }
+    *star = s;
+    return 0;
+}
+
+/** "YYYY-MM-DDThh:mm:ss" 的字符位置检查（不校验真实日期） */
+static int iso_digits_ok(const char *iso)
+{
+    for (size_t i = 0u; i < 19u; i++) {
+        char c = iso[i];
+        if (i == 4u || i == 7u) {
+            if (c != '-') { return 0; }
+        } else if (i == 10u) {
+            if (c != 'T' && c != ' ') { return 0; }
+        } else if (i == 13u || i == 16u) {
+            if (c != ':') { return 0; }
+        } else if (c < '0' || c > '9') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int qsm_time_encode(const char *iso, char *buf, size_t buflen)
+{
+    size_t  pos = 0u;
+    uint8_t crc;
+
+    if (iso == NULL || buf == NULL || buflen < 32u || !iso_digits_ok(iso)) {
+        return -1;
+    }
+
+    pos = put_char(buf, buflen, pos, '$');
+    pos = put_str (buf, buflen, pos, "QST,");
+    if (pos == 0u) { return -1; }
+    for (size_t i = 0u; i < 19u; i++) {
+        pos = put_char(buf, buflen, pos, iso[i]);
+        if (pos == 0u) { return -1; }
+    }
+
+    crc = qsm_crc8((const uint8_t *)&buf[1], pos - 1u);
+
+    pos = put_char(buf, buflen, pos, '*');  if (pos == 0u) { return -1; }
+    pos = put_hex8(buf, buflen, pos, crc);  if (pos == 0u) { return -1; }
+    pos = put_char(buf, buflen, pos, '\n'); if (pos == 0u) { return -1; }
+    buf[pos] = '\0';
+
+    return (int)pos;
+}
+
+int qsm_time_parse(const char *line, size_t len, char *iso, size_t isolen)
+{
+    size_t       star = 0u;
+    int          r;
+    const char  *fp;
+    size_t       fl;
+    const char  *body;
+    size_t       body_len;
+
+    if (iso == NULL || isolen < 20u) {
+        return -1;
+    }
+
+    r = frame_check(line, len, &star);
+    if (r != 0) {
+        return r;
+    }
+
+    body     = &line[1];
+    body_len = star - 1u;
+
+    if (field_at(body, body_len, 0u, &fp, &fl) != 0 || fl != 3u ||
+        fp[0] != 'Q' || fp[1] != 'S' || fp[2] != 'T') {
+        return -1;
+    }
+    if (field_at(body, body_len, 1u, &fp, &fl) != 0 || fl != 19u) {
+        return -1;
+    }
+
+    for (size_t i = 0u; i < 19u; i++) {
+        iso[i] = fp[i];
+    }
+    iso[19] = '\0';
+
+    return iso_digits_ok(iso) ? 0 : -1;
+}

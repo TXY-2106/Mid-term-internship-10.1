@@ -65,4 +65,16 @@ int qsm_cmd_encode(uint8_t cmd, char *buf, size_t buflen);
 /** 解析一条命令；@return 0 成功，-1 格式错，-2 CRC 错 */
 int qsm_cmd_parse(const char *line, size_t len, uint8_t *cmd);
 
+/* ---------------- 校时帧（ESP32 → STM32） ----------------
+ * 帧格式：$QST,<ISO8601>*<CRC8>\n     例：$QST,2026-11-26T16:31:00*76
+ * 用途：DS3231 掉电/换电池后时间会回到 2000-01-01，
+ *       网页点一下"校准时间"，把浏览器所在设备的本地时间写进芯片。
+ * 时间串固定 19 字符（YYYY-MM-DDThh:mm:ss），不做时区换算：
+ * 发什么写什么，由网页端负责把本地时间格式化成这个串。
+ */
+int qsm_time_encode(const char *iso, char *buf, size_t buflen);
+
+/** 解析校时帧；iso 至少 20 字节。@return 0 成功，-1 格式错，-2 CRC 错 */
+int qsm_time_parse(const char *line, size_t len, char *iso, size_t isolen);
+
 #endif /* QSM_PROTOCOL_H */

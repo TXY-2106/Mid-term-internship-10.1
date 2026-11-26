@@ -229,3 +229,28 @@ bool link_send_cmd(uint8_t cmd)
     return true;
 }
 
+bool link_send_time(const char *iso)
+{
+    char    body[32];
+    char    frame[48];
+    uint8_t crc;
+    int     n;
+
+    if (iso == NULL || strlen(iso) != 19u) {
+        return false;
+    }
+
+    n = snprintf(body, sizeof(body), "QST,%s", iso);
+    if (n <= 0 || (size_t)n + 6u > sizeof(frame)) {
+        return false;
+    }
+
+    crc = crc8((const uint8_t *)body, (size_t)n);
+
+    snprintf(frame, sizeof(frame), "$%s*%02X\n", body, (unsigned)crc);
+    Serial2.print(frame);
+    Serial.print("[QSM] time sent: ");
+    Serial.print(frame);
+    return true;
+}
+

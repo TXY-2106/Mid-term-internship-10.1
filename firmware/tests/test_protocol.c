@@ -222,4 +222,54 @@ void suite_protocol(void)
         CHECK_EQ(qsm_cmd_parse(NULL, 10u, &cmd), -1);
         CHECK_EQ(qsm_cmd_parse("$QSR,1*69\n", 10u, NULL), -1);
     }
+
+    /* 用例 9：校时帧 */
+    {
+        char  buf[64];
+        char  iso[24];
+        int   n;
+        char  iso_out[24];
+
+        n = qsm_time_encode("2026-11-26T16:31:00", buf, sizeof(buf));
+        CHECK(n > 0);
+        CHECK(strcmp(buf, "$QST,2026-11-26T16:31:00*76\n") == 0);
+        CHECK_EQ(qsm_time_parse(buf, (size_t)n, iso_out, sizeof(iso_out)), 0);
+        CHECK(strcmp(iso_out, "2026-11-26T16:31:00") == 0);
+
+        n = qsm_time_encode("2026-01-02T03:04:05", buf, sizeof(buf));
+        CHECK(n > 0);
+        CHECK(strcmp(buf, "$QST,2026-01-02T03:04:05*40\n") == 0);
+        CHECK_EQ(qsm_time_parse(buf, (size_t)n, iso_out, sizeof(iso_out)), 0);
+        CHECK(strcmp(iso_out, "2026-01-02T03:04:05") == 0);
+
+        /* 不带结尾换行 */
+        CHECK_EQ(qsm_time_parse("$QST,2026-11-26T16:31:00*76", 27u, iso_out, sizeof(iso_out)), 0);
+
+        /* CRC 错 -> -2 */
+        CHECK_EQ(qsm_time_parse("$QST,2026-11-26T16:31:00*77\n", 28u, iso_out, sizeof(iso_out)), -2);
+
+        /* 字段 0 不是 QST -> -1（CRC 正确） */
+        {
+            char    bad[64];
+            const char b[] = "QSR,2026-11-26T16:31:00";
+            uint8_t c = qsm_crc8((const uint8_t *)b, strlen(b));
+            (void)snprintf(bad, sizeof(bad), "$%s*%02X\n", b, (unsigned)c);
+            CHECK_EQ(qsm_time_parse(bad, strlen(bad), iso_out, sizeof(iso_out)), -1);
+        }
+
+        /* 时间串长度不足 19 -> 编码拒绝 */
+        CHECK_EQ(qsm_time_encode("2026-11-26T16:31", buf, sizeof(buf)), -1);
+        /* 分隔符错 -> 编码拒绝 */
+        CHECK_EQ(qsm_time_encode("2026/11/26T16:31:00", buf, sizeof(buf)), -1);
+        /* 非数字 -> 编码拒绝 */
+        CHECK_EQ(qsm_time_encode("2026-11-26T16:3a:00", buf, sizeof(buf)), -1);
+        /* 缓冲区太小 -> -1 */
+        CHECK_EQ(qsm_time_encode("2026-11-26T16:31:00", buf, 16u), -1);
+        /* NULL 参数 */
+        CHECK_EQ(qsm_time_encode(NULL, buf, sizeof(buf)), -1);
+        CHECK_EQ(qsm_time_parse(NULL, 27u, iso_out, sizeof(iso_out)), -1);
+        CHECK_EQ(qsm_time_parse("$QST,2026-11-26T16:31:00*76", 27u, NULL, 24u), -1);
+        /* iso 缓冲太小 -> -1 */
+        CHECK_EQ(qsm_time_parse("$QST,2026-11-26T16:31:00*76", 27u, iso, 10u), -1);
+    }
 }

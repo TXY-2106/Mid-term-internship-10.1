@@ -164,6 +164,41 @@ uint8_t bsp_ds3231_init(void)
     return i2c_read_regs(0x0Fu, &st, 1u);
 }
 
+uint8_t bsp_ds3231_is_valid(void)
+{
+    uint8_t raw[7];
+    uint8_t status = 0u;
+    uint8_t year;
+    uint8_t month;
+    uint8_t day;
+
+    if (!i2c_read_regs(0x00u, raw, 7u)) {
+        return 0u;
+    }
+    /* OSF（0x0F 的 bit7）置位 = 曾经掉电停振，时间不可信 */
+    if (!i2c_read_regs(0x0Fu, &status, 1u)) {
+        return 0u;
+    }
+    if ((status & 0x80u) != 0u) {
+        return 0u;
+    }
+
+    year  = bcd_to_bin(raw[6]);
+    month = bcd_to_bin(raw[5] & 0x1Fu);
+    day   = bcd_to_bin(raw[4] & 0x3Fu);
+
+    if (year < 20u) {                   /* 2000–2019：从未校时 */
+        return 0u;
+    }
+    if (month < 1u || month > 12u) {
+        return 0u;
+    }
+    if (day < 1u || day > 31u) {
+        return 0u;
+    }
+    return 1u;
+}
+
 uint8_t bsp_ds3231_get_iso8601(char *buf, uint8_t len)
 {
     uint8_t raw[7];
@@ -193,6 +228,84 @@ uint8_t bsp_ds3231_get_iso8601(char *buf, uint8_t len)
     (void)sec;
 
     return (uint8_t)(p == 19u);
+}
+
+/* ---------------- 校时（网页一键写入） ---------------- */
+
+static uint8_t bin_to_bcd(uint8_t v) { return (uint8_t)(((v / 10u) << 4) | (v % 10u)); }
+
+/** 0 = 周日 … 6 = 周六（Sakamoto） */
+static uint8_t weekday_from_ymd(uint16_t y, uint8_t m, uint8_t d)
+{
+    static const uint8_t t[12] = { 0u, 3u, 2u, 5u, 0u, 3u, 5u, 1u, 4u, 6u, 2u, 4u };
+    uint16_t yy = (m < 3u) ? (uint16_t)(y - 1u) : y;
+    uint16_t r = (uint16_t)(yy + yy / 4u - yy / 100u + yy / 400u + t[m - 1u] + d);
+
+    return (uint8_t)(r % 7u);
+}
+
+static uint8_t parse_two(const char *s)
+{
+    return (uint8_t)(((uint8_t)(s[0] - '0')) * 10u + (uint8_t)(s[1] - '0'));
+}
+
+uint8_t bsp_ds3231_set_iso8601(const char *iso)
+{
+    uint16_t y;
+    uint8_t  mo, d, h, mi, sec, wd;
+    uint8_t  raw[7];
+    uint8_t  st = 0u;
+    uint8_t  i;
+
+    if (iso == NULL) { return 0u; }
+
+    /* 只接受 YYYY-MM-DDThh:mm:ss，逐位校验，避免把脏数据写进芯片 */
+    for (i = 0u; i < 19u; i++) {
+        char c = iso[i];
+        if (i == 4u || i == 7u) {
+            if (c != '-') { return 0u; }
+        } else if (i == 10u) {
+            if (c != 'T' && c != ' ') { return 0u; }
+        } else if (i == 13u || i == 16u) {
+            if (c != ':') { return 0u; }
+        } else if (c < '0' || c > '9') {
+            return 0u;
+        }
+    }
+
+    y   = (uint16_t)(parse_two(&iso[0]) * 100u + parse_two(&iso[2]));
+    mo  = parse_two(&iso[5]);
+    d   = parse_two(&iso[8]);
+    h   = parse_two(&iso[11]);
+    mi  = parse_two(&iso[14]);
+    sec = parse_two(&iso[17]);
+
+    if (y < 2020u || y > 2099u || mo < 1u || mo > 12u || d < 1u || d > 31u ||
+        h > 23u || mi > 59u || sec > 59u) {
+        return 0u;
+    }
+
+    wd = (uint8_t)(weekday_from_ymd(y, mo, d) + 1u);   /* DS3231: 1=周日 */
+
+    raw[0] = bin_to_bcd(sec);
+    raw[1] = bin_to_bcd(mi);
+    raw[2] = bin_to_bcd(h);
+    raw[3] = wd;
+    raw[4] = bin_to_bcd(d);
+    raw[5] = bin_to_bcd(mo);
+    raw[6] = bin_to_bcd((uint8_t)(y % 100u));
+
+    for (i = 0u; i < 7u; i++) {
+        if (!i2c_write_reg(i, raw[i])) { return 0u; }
+    }
+
+    /* 清 OSF（状态寄存器 bit7）：芯片停振过会被置位，不清的话某些模块会继续"冻结" */
+    if (i2c_read_regs(0x0Fu, &st, 1u)) {
+        st &= (uint8_t)~0x80u;
+        (void)i2c_write_reg(0x0Fu, st);
+    }
+
+    return 1u;
 }
 
 /* ---------------- 总线扫描（排查接线用） ----------------
@@ -294,6 +407,8 @@ uint8_t bsp_ds3231_scan(uint8_t *addrs, uint8_t max_found)
 
 uint8_t bsp_ds3231_init(void) { return 0u; }
 
+uint8_t bsp_ds3231_is_valid(void) { return 0u; }
+
 uint8_t bsp_ds3231_scan(uint8_t *addrs, uint8_t max_found)
 {
     (void)addrs;
@@ -305,6 +420,12 @@ uint8_t bsp_ds3231_get_iso8601(char *buf, uint8_t len)
 {
     (void)buf;
     (void)len;
+    return 0u;
+}
+
+uint8_t bsp_ds3231_set_iso8601(const char *iso)
+{
+    (void)iso;
     return 0u;
 }
 
